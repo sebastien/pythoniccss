@@ -17,32 +17,31 @@ b:
 	to:
 		background: yellow
 	
-# @font-face
-# 	font-family: asdas
-# 
-# @keyframes name2
-# 	0%:
-# 		background: red
-# 	100%:
-# 		background: yellow
-# 
-# # @media screen and (max-width: 300px):
-# # 	body:
-# # 		background-color: lightplue
-# 
-# div:
-# 	width: 100%
-# 	animation: name 5s
-# 
-# .Application:
-# 	&.with-base:
-# 		background: 200%
-# 
-# div:
-# 	#@apply cleared
-# 	color: #FFAAAAAA
-# 	content: "asdasdd"
-# 	# background: #FFAAAAAA.brighten() 
-# 	# width: 10em * 1.0 + ($A * 10 / 2)
-# 
-# # EOF
+@font-face:
+	font-family: asdas
+
+@keyframes name2:
+	0%:
+		background: red
+	100%:
+		background: yellow
+
+@media[screen and (max-width: 300px)]:
+	body:
+		background-color: lightplue
+
+div:
+	width: 100%
+	animation: name 5s
+
+.Application:
+	&.with-base:
+		background: 200%
+
+div:
+	color: #FF00FF
+	content: "asdasdd"
+	background: #FFAAAAAA.brighten() 
+	width: 10em * 1.0 + ($A * 10 / 2)
+
+# EOF

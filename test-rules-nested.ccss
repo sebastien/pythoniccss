@@ -1,3 +1,4 @@
 a:
 	b1:
 		color: $COLOR_1
+	color: $COLOR_2

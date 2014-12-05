@@ -140,13 +140,18 @@ BLOCK
 			STATEMENT
 """
 
-TEST =  """\
+TEST_6 =  """\
 BLOCK
 	BLOCK
 		STATEMENT
 		BLOCK
 			STATEMENT
 	STATEMENT
+"""
+TEST =  """\
+BLOCK
+	BLOCK
+		STATEMENT
 """
 
 if __name__ == "__main__":
