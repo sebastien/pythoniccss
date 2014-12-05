@@ -99,22 +99,23 @@ def grammar(g=Grammar("PythonicCSS")):
 	# LINES (BODY)
 	# =========================================================================
 
-	g.rule      ("Comment",          s.COMMENT.oneOrMore(), s.EOL)
-	g.rule      ("Declaration",      s.VARIABLE_NAME, s.EQUAL, s.Expression, s.EOL)
-	g.rule      ("Assignment",       s.CSS_PROPERTY, s.COLON, s.Expression,  s.EOL)
-	g.rule      ("Include",          s.INCLUDE, s.PATH, s.EOL)
+	g.rule      ("Comment",          s.COMMENT.oneOrMore())
+	g.rule      ("Declaration",      s.VARIABLE_NAME, s.EQUAL, s.Expression)
+	g.rule      ("Assignment",       s.CSS_PROPERTY, s.COLON, s.Expression)
+	g.rule      ("Include",          s.INCLUDE, s.PATH)
 
 	# =========================================================================
 	# BLOCK STRUCTURE
 	# =========================================================================
 
-	g.rule    ("Rule")
-	g.group   ("RuleLine",        s.CheckIndent, g.agroup(s.Assignment, s.Comment, s.Include, s.Rule))
+	g.rule    ("Rule").disableFailMemoize()
+	g.rule    ("RuleLine",        s.CheckIndent, g.agroup(s.Assignment, s.Rule, s.Comment), s.EOL).disableMemoize()
 	g.rule    ("RuleBody",        s.Indent, s.RuleLine.zeroOrMore(), s.Dedent)
-	g.rule    ("RuleSelection",   g.agroup(s.Selection, s.PERCENTAGE), s.COLON, s.EOL)
+	g.rule    ("RuleSelection",   s.CheckIndent, g.agroup(s.Selection, s.PERCENTAGE), s.COLON, s.EOL)
+	s.Rule.set(s.RuleSelection, s.RuleBody)
+
 	# NOTE: We move the s.CheckIndent there as CheckIndent is a side effect
 	# and would prevent proper caching.
-	s.Rule.set(s.CheckIndent, s.RuleSelection, s.RuleBody)
 
 	g.rule    ("SpecialDeclaration",   s.CheckIndent, s.SPECIAL_NAME, s.VARIABLE_NAME, s.Parameters.optional(), s.COLON)
 	g.rule    ("SpecialBlock",         s.SpecialDeclaration, s.EOL, s.RuleBody)
@@ -124,7 +125,8 @@ def grammar(g=Grammar("PythonicCSS")):
 	# AXIOM
 	# =========================================================================
 
-	g.group     ("Source",  g.agroup(s.Comment, s.Rule, s.SpecialBlock, s.Declaration, s.Include).zeroOrMore())
+	#g.group     ("Source",  g.agroup(s.Comment, s.Rule, s.SpecialBlock, s.Declaration, s.Include).zeroOrMore())
+	g.group     ("Source",  g.agroup(s.Comment, s.Rule).zeroOrMore())
 	g.ignore    (s.SPACE)
 	g.axiom     = s.Source
 	return g
