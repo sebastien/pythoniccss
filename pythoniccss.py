@@ -13,6 +13,7 @@ def doIndent(context):
 	v = context.getVariables().getParent ()
 	i = v.get("requiredIndent") or 0
 	v.set("requiredIndent", i + 1)
+	print "INDENT", i + 1
 	return True
 
 def doCheckIndent(context):
@@ -20,12 +21,14 @@ def doCheckIndent(context):
 	tab_match  = context.getVariables().get("tabs")
 	tab_indent = len(tab_match.group())
 	req_indent = v.get("requiredIndent") or 0
+	print "CHECK INDENT", tab_indent, "REQ", req_indent
 	return tab_indent == req_indent
 
 def doDedent(context):
 	v = context.getVariables().getParent ()
 	i = v.get("requiredIndent") or 0
 	v.set("requiredIndent", i - 1)
+	print "DEDENT", i - 1
 	return True
 
 # -----------------------------------------------------------------------------
@@ -50,6 +53,7 @@ def grammar(g=Grammar("PythonicCSS")):
 	g.word    ("COLON",            ":")
 	g.word    ("SELF",             "&")
 	g.word    ("COMMA",            ",")
+	g.word    ("TAB",              "\t")
 
 	g.token   ("PATH",             "\"[^\"]+\"|'[^']'|[^\s\n]+")
 	g.token   ("PERCENTAGE",       "\d+(\.\d+)%")
@@ -95,20 +99,22 @@ def grammar(g=Grammar("PythonicCSS")):
 	# LINES (BODY)
 	# =========================================================================
 
-	g.rule      ("Comment",          s.COMMENT.oneOrMore(), s.EOL.optional())
-	g.rule      ("Declaration",      s.CheckIndent, s.VARIABLE_NAME, s.EQUAL, s.Expression, s.EOL)
-	g.rule      ("Assignment",       s.CheckIndent, s.CSS_PROPERTY, s.COLON, s.Expression, s.EOL)
-	g.rule      ("Include",          s.CheckIndent, s.INCLUDE, s.PATH, s.EOL)
+	g.rule      ("Comment",          s.COMMENT.oneOrMore(), s.EOL)
+	g.rule      ("Declaration",      s.VARIABLE_NAME, s.EQUAL, s.Expression, s.EOL)
+	g.rule      ("Assignment",       s.CSS_PROPERTY, s.COLON, s.Expression,  s.EOL)
+	g.rule      ("Include",          s.INCLUDE, s.PATH, s.EOL)
 
 	# =========================================================================
 	# BLOCK STRUCTURE
 	# =========================================================================
 
 	g.rule    ("Rule")
-	g.group   ("RuleLine",        s.Rule, s.Comment, s.Assignment)
+	g.group   ("RuleLine",        s.CheckIndent, g.agroup(s.Assignment, s.Comment, s.Include, s.Rule))
 	g.rule    ("RuleBody",        s.Indent, s.RuleLine.zeroOrMore(), s.Dedent)
-	g.rule    ("RuleSelection",   s.CheckIndent, g.agroup(s.Selection, s.PERCENTAGE), s.COLON)
-	s.Rule.set(s.RuleSelection, s.EOL, s.RuleBody)
+	g.rule    ("RuleSelection",   g.agroup(s.Selection, s.PERCENTAGE), s.COLON, s.EOL)
+	# NOTE: We move the s.CheckIndent there as CheckIndent is a side effect
+	# and would prevent proper caching.
+	s.Rule.set(s.CheckIndent, s.RuleSelection, s.RuleBody)
 
 	g.rule    ("SpecialDeclaration",   s.CheckIndent, s.SPECIAL_NAME, s.VARIABLE_NAME, s.Parameters.optional(), s.COLON)
 	g.rule    ("SpecialBlock",         s.SpecialDeclaration, s.EOL, s.RuleBody)
@@ -118,8 +124,8 @@ def grammar(g=Grammar("PythonicCSS")):
 	# AXIOM
 	# =========================================================================
 
-	g.group     ("Source",  g.agroup(s.Comment, s.SpecialBlock, s.Rule, s.Declaration, s.Include).zeroOrMore())
-	g.ignore    (s.SPACE, s.COMMENT, s.EOL)
+	g.group     ("Source",  g.agroup(s.Comment, s.Rule, s.SpecialBlock, s.Declaration, s.Include).zeroOrMore())
+	g.ignore    (s.SPACE)
 	g.axiom     = s.Source
 	return g
 
