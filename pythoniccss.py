@@ -87,7 +87,6 @@ def grammar(g=Grammar("PythonicCSS")):
 	g.procedure ("Dedent",           doDedent)
 	g.rule      ("CheckIndent",      s.TABS.bindAs("tabs"), g.acondition(doCheckIndent)).disableMemoize ()
 
-
 	# TODO: support nth(10)
 	g.rule      ("Selector",         g.agroup(s.SELF, s.NODE, s.NODE_ID, s.NODE_CLASS), s.SUFFIX.optional())
 	g.rule      ("SelectorNarrower", s.SELECTION_OPERATOR.optional(), s.Selector)
@@ -102,6 +101,8 @@ def grammar(g=Grammar("PythonicCSS")):
 	g.group     ("String",           s.STRING_SQ, s.STRING_DQ)
 	g.group     ("Value",            s.Number, s.COLOR_HEX, s.COLOR_RGB, s.REFERENCE, s.COLOR_NAME, s.String)
 	g.rule      ("Expression")
+	# NOTE: We use Prefix and Suffix to avoid recursion, which creates a lot
+	# of problems with parsing expression grammars
 	g.group     ("Prefix", s.Value, g.arule(s.LP, s.Expression, s.RP))
 	s.Expression.set(s.Prefix, s.Suffixes.zeroOrMore())
 	g.rule      ("Parameters",       s.VARIABLE_NAME, g.arule(s.COMMA, s.VARIABLE_NAME).zeroOrMore())
@@ -147,6 +148,15 @@ def grammar(g=Grammar("PythonicCSS")):
 	g.ignore    (s.SPACE)
 	g.axiom     = s.Source
 	return g
+
+# -----------------------------------------------------------------------------
+#
+# PROCESSOR
+#
+# -----------------------------------------------------------------------------
+
+class Processor:
+	"""Processes the raw grammar output and directly outputs the CSS code."""
 
 # -----------------------------------------------------------------------------
 #
