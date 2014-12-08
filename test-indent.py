@@ -3,15 +3,6 @@ from parsing import Grammar
 
 G = None
 
-__doc__ = """
-This is a test-case to exercise the relationship between using side-effect
-based rules and memoization, which triggered problems with PythonicCSS in the
-first place. Basically, any rule that has a CheckIndent as a first element,
-and any rule that references this rule as first child should be marked
-as not memoizing failures, because CheckIndent might become valid after
-successful deindent and implicit closing of previous blocks.
-"""
-
 # -----------------------------------------------------------------------------
 #
 # INDENTATION FUNCTIONS
@@ -140,18 +131,13 @@ BLOCK
 			STATEMENT
 """
 
-TEST_6 =  """\
+TEST =  """\
 BLOCK
 	BLOCK
 		STATEMENT
 		BLOCK
 			STATEMENT
 	STATEMENT
-"""
-TEST =  """\
-BLOCK
-	BLOCK
-		STATEMENT
 """
 
 if __name__ == "__main__":

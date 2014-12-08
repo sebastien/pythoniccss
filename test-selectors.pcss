@@ -1,0 +1,33 @@
+div:
+	color:      #FF00FF
+	content:    "asdasdd"
+	background: #FFAAAAAA.brighten() 
+	width:      10em * 1.0 + ($A * 10 / 2)
+	animation:  name 5s
+
+div, span:
+	font-size: 100%
+
+div:
+	&:first-child:
+		color: red
+	&:last-child:
+		color: green
+	&:nth-child(2):
+		color: yellow
+
+.Application:
+	&.with-base:
+		background: 200%
+
+#Application:
+	font-size: 100%
+
+div[data-type=1.0]:
+	font-size: 100%
+
+*[data-type=1.0]:hover:
+	font-size: 100%
+
+div#Application.widget.application[data-type=Application]:hover:
+	font-size: 100%

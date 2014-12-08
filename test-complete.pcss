@@ -1,47 +1,170 @@
-# SYNTAX
+//
+// == PythonicCSS
+// == version 0.0.1
+// -- Updated: 2014-12-08
+// 
+// PythonicCSS is a pre-compiler that outputs CSS, inspired by CleverCSS and
+// its Python-like use of indentation to express structure. PythonicCSS can be
+// thought of a CleverCSS 2.0, but as it does have a fully compatible syntax it
+// did not make sense to keep the same name.
+// 
+//
+// Syntax Overview
+// ===============
+// 
+// PythonicCSS's syntax is based on indentation, just like in Python. The main 
+// difference is that PythonicCSS is stricter and always expects the right amount
+// of indentation and the use of tabs (not spaces) to do so.
+// 
+// Here's an example of what PythonicCSS looks like (this example is actually
+// the same from CleverCSS's documentation).
+// 
 
-%include file.pcss
+ul#comments, ol#comments:
+	margin: 0
+	padding: 0
+	li:
+		padding: 0.4em
+		margin: 0.8em 0 0.8em
+	h3:
+	  font-size: 1.2em
+	p:
+	  padding: 0.3em
+	p.meta:
+	  text-align: right
+	  color: #ddd
 
-@trait cleared:
-	clear: both
+// Selectors & Rules
+// =================
+// 
+// You can use any CSS-like selector in you rules. You can use `,` to separate 
+// the selectors on a single line and `&` to refer to the parent selector in
+// a nested rule.
 
-a:
-	color: red
-
-b:
-	color: red
-
-@keyframes name:
-	from:
-		background: red
-	to:
-		background: yellow
-	
-@font-face:
-	font-family: asdas
-
-@keyframes name2:
-	0%:
-		background: red
-	100%:
-		background: yellow
-
-@media[screen and (max-width: 300px)]:
-	body:
-		background-color: lightplue
+A = 10
 
 div:
-	width: 100%
-	animation: name 5s
+	color:      #FF00FF
+	content:    "asdasdd"
+	background: #FFAAAAAA.brighten() 
+	width:      10em * 1.0 + ($A * 10 / 2)
+	animation:  name 5s
+
+div, span:
+	font-size: 100%
+
+div:
+	&:first-child:
+		color: red
+	&:last-child:
+		color: green
+	&:nth-child(2):
+		color: yellow
 
 .Application:
 	&.with-base:
 		background: 200%
 
-div:
-	color: #FF00FF
-	content: "asdasdd"
-	background: #FFAAAAAA.brighten() 
-	width: 10em * 1.0 + ($A * 10 / 2)
+#Application:
+	font-size: 100%
 
-# EOF
+div[data-type=1.0]:
+	font-size: 100%
+
+*[data-type=1.0]:hover:
+	font-size: 100%
+
+div#Application.widget.application[data-type=Application]:hover:
+	font-size: 100%
+
+// Includes
+// ========
+// 
+// Syntax:: `%include <PATH.pcss>`
+// 
+// The `PATH` will be resolved relatively to the current file, and if not found
+// will be resolved relatively to the current working directory. 
+
+%include test-include.pcss
+
+// Variables
+// =========
+// 
+// Variables are declared at the beginning of the file, and can have any type of
+// expression. Note that variables are not evaluated until referenced.
+// 
+// Variables are expected to be `UPPER_CASE`.
+
+FONT_SIZE            = 14
+PX                   = 1em / $FONT_SIZE
+PAD                  = 20 * $PX
+
+BACKGROUND_COLOR     = white
+BACKGROUND_COLOR_ALT = #F0F0F0
+
+// PCSS allows for implicit concatenation, as shown in the example below
+
+label1:
+	padding: $foo + 2 + 3 $foo - 2
+
+label2:
+	padding: ($foo + 2 + 3) ($foo - 2)
+
+// Macros
+// ======
+// 
+// Syntax:: `@macro <NAME> <ARG?>...:`
+// 
+// Macros allow to define common properties that can be applied all at once using
+// by calling the macro with `<NAME>()`
+
+@macro cleared:
+	clear:   both
+	content: ""
+	display: block
+	height:  0em
+
+div.cleared:
+	cleared()
+
+// CSS animations
+// ==============
+// 
+// Syntax:: `@animation <NAME>:`
+// 
+// CSS animations can be defined just like in CSS3, using `from/to` or percentages
+// to define the frames. You can use property groups and macros just like in any
+// other PCSS block.
+
+// Keyframes with from/to
+@keyframes animation1:
+	from:
+		background: red
+	to:
+		background: yellow
+
+// Keyframes with %
+@keyframes animation2:
+	0%:
+		background: red
+	100%:
+		background: yellow
+
+// Font-Face
+// ==============
+// 
+// Syntax:: `@font-face <NAME>:`
+
+@font-face:
+	font-family: asdas
+
+// Media queries
+// =============
+// 
+// Syntax:: `@media[<CONSTRAINTS>]`
+
+@media[screen and (max-width: 300px)]:
+	body:
+		background-color: lightblue
+
+// EOF

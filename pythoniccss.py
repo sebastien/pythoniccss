@@ -13,7 +13,6 @@ def doIndent(context):
 	v = context.getVariables().getParent ()
 	i = v.get("requiredIndent") or 0
 	v.set("requiredIndent", i + 1)
-	print "INDENT", i + 1
 	return True
 
 def doCheckIndent(context):
@@ -21,14 +20,12 @@ def doCheckIndent(context):
 	tab_match  = context.getVariables().get("tabs")
 	tab_indent = len(tab_match.group())
 	req_indent = v.get("requiredIndent") or 0
-	print "CHECK INDENT", tab_indent, "REQ", req_indent
 	return tab_indent == req_indent
 
 def doDedent(context):
 	v = context.getVariables().getParent ()
 	i = v.get("requiredIndent") or 0
 	v.set("requiredIndent", i - 1)
-	print "DEDENT", i - 1
 	return True
 
 # -----------------------------------------------------------------------------
@@ -43,11 +40,13 @@ def grammar(g=Grammar("PythonicCSS")):
 	g.token   ("TABS",             "\t*")
 	g.token   ("EMPTY_LINES",      "([ \t]*\n)+")
 	g.token   ("INDENT",           "\t+")
-	g.token   ("COMMENT",          "[ \t]*\#[^\n]*")
+	g.token   ("COMMENT",          "[ \t]*\//[^\n]*")
 	g.token   ("EQUAL",             "=")
 	g.token   ("EOL",              "[ ]*\n(\s*\n)*")
 	g.token   ("NUMBER",           "-?(0x)?[0-9]+(\.[0-9]+)?")
-	g.token   ("SUFFIX",           ":[a-z][a-z0-9\-]*")
+	g.token   ("ATTRIBUTE",        "[a-zA-Z\-_][a-zA-Z0-9\-_]*")
+	g.token   ("ATTRIBUTE_VALUE",  "\"[^\"]*\"|'[^']*'|[^,\]]+")
+	g.token   ("SELECTOR_SUFFIX",  ":[a-z][a-z0-9\-]*(\([0-9]+\))?")
 	g.token   ("SELECTION_OPERATOR", "\>")
 	g.word    ("INCLUDE",             "%include")
 	g.word    ("COLON",            ":")
@@ -57,6 +56,9 @@ def grammar(g=Grammar("PythonicCSS")):
 	g.word    ("SELF",             "&")
 	g.word    ("COMMA",            ",")
 	g.word    ("TAB",              "\t")
+	g.word    ("EQUAL",            "=")
+	g.word    ("LSBRACKET",        "[")
+	g.word    ("RSBRACKET",        "]")
 
 	g.token   ("PATH",             "\"[^\"]+\"|'[^']'|[^\s\n]+")
 	g.token   ("PERCENTAGE",       "\d+(\.\d+)?%")
@@ -64,16 +66,18 @@ def grammar(g=Grammar("PythonicCSS")):
 	g.token   ("STRING_DQ",        "\"(\\\\\"|[^\"\\n])*\"")
 	g.token   ("INFIX_OPERATOR",   "[\-\+\*\/]")
 
-	g.token   ("NODE",             "[a-zA-Z][a-zA-Z0-9\-]*")
+	g.token   ("NODE",             "\*|([a-zA-Z][a-zA-Z0-9\-]*)")
 	g.token   ("NODE_CLASS",       "\.[a-zA-Z][a-zA-Z0-9\-]*")
 	g.token   ("NODE_ID",          "#[a-zA-Z][a-zA-Z0-9\-]*")
+
 	# SEE: http://www.w3schools.com/cssref/css_units.asp
 	g.token   ("UNIT",             "em|ex|px|cm|mm|in|pt|pc|ch|rem|vh|vmin|vmax|\%")
 	g.token   ("VARIABLE_NAME",    "[\w_][\w\d_]*")
 	g.token   ("METHOD_NAME",      "[\w_][\w\d_]*")
+	g.token   ("MACRO_NAME",       "[\w_][\w\d_]*")
 	g.token   ("REFERENCE",        "\$[\w_][\w\d_]*")
 	g.token   ("COLOR_NAME",       "[a-z][a-z0-9\-]*")
-	g.token   ("COLOR_HEX",        "\#[A-Fa-f0-9][A-Fa-f0-9][A-Fa-f0-9][A-Fa-f0-9][A-Fa-f0-9][A-Fa-f0-9]([A-Fa-f0-9][A-Fa-f0-9])?")
+	g.token   ("COLOR_HEX",        "\#[A-Fa-f0-9][A-Fa-f0-9]?[A-Fa-f0-9]?[A-Fa-f0-9]?[A-Fa-f0-9]?[A-Fa-f0-9]?([A-Fa-f0-9][A-Fa-f0-9])?")
 	g.token   ("COLOR_RGB",        "rgba?\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*(,\s*\d+\s*)?\)")
 	g.token   ("CSS_PROPERTY",    "[a-z][a-z0-9\-]*")
 	g.token   ("SPECIAL_NAME",     "@[A-Za-z][A-Za-z0-9\_\-]*")
@@ -87,10 +91,14 @@ def grammar(g=Grammar("PythonicCSS")):
 	g.procedure ("Dedent",           doDedent)
 	g.rule      ("CheckIndent",      s.TABS.bindAs("tabs"), g.acondition(doCheckIndent)).disableMemoize ()
 
-	# TODO: support nth(10)
-	g.rule      ("Selector",         g.agroup(s.SELF, s.NODE, s.NODE_ID, s.NODE_CLASS), s.SUFFIX.optional())
+	g.rule      ("Attribute",        s.ATTRIBUTE, g.arule(s.EQUAL, s.ATTRIBUTE_VALUE).optional())
+	g.rule      ("Attributes",       s.LSBRACKET, s.Attribute, g.arule(s.COMMA, s.Attribute).zeroOrMore(), s.RSBRACKET)
+
+	g.rule      ("Selector",         g.agroup(s.SELF, s.NODE).optional(), s.NODE_ID.optional(), s.NODE_CLASS.zeroOrMore(), s.Attributes.optional(), s.SELECTOR_SUFFIX.zeroOrMore())
 	g.rule      ("SelectorNarrower", s.SELECTION_OPERATOR.optional(), s.Selector)
+
 	g.rule      ("Selection",        g.agroup(s.Selector), s.SelectorNarrower.zeroOrMore ())
+	g.rule      ("SelectionList",    s.Selection, g.arule(s.COMMA, s.Selection).zeroOrMore())
 
 	# =========================================================================
 	# VALUES & EXPRESSIONS
@@ -100,15 +108,17 @@ def grammar(g=Grammar("PythonicCSS")):
 	g.rule      ("Number",           s.NUMBER, s.UNIT.optional())
 	g.group     ("String",           s.STRING_SQ, s.STRING_DQ)
 	g.group     ("Value",            s.Number, s.COLOR_HEX, s.COLOR_RGB, s.REFERENCE, s.COLOR_NAME, s.String)
+	g.rule      ("Parameters",       s.VARIABLE_NAME, g.arule(s.COMMA, s.VARIABLE_NAME).zeroOrMore())
+
 	g.rule      ("Expression")
 	# NOTE: We use Prefix and Suffix to avoid recursion, which creates a lot
 	# of problems with parsing expression grammars
 	g.group     ("Prefix", s.Value, g.arule(s.LP, s.Expression, s.RP))
 	s.Expression.set(s.Prefix, s.Suffixes.zeroOrMore())
-	g.rule      ("Parameters",       s.VARIABLE_NAME, g.arule(s.COMMA, s.VARIABLE_NAME).zeroOrMore())
-	g.rule      ("Invocation",     s.DOT,     s.METHOD_NAME, s.LP, s.Parameters.optional(), s.RP)
+
+	g.rule      ("MethodInvocation",     s.DOT,     s.METHOD_NAME, s.LP, s.Parameters.optional(), s.RP)
 	g.rule      ("InfixOperation", s.INFIX_OPERATOR, s.Expression)
-	s.Suffixes.set(s.Invocation, s.InfixOperation)
+	s.Suffixes.set(s.MethodInvocation, s.InfixOperation)
 
 	# =========================================================================
 	# LINES (BODY)
@@ -123,6 +133,7 @@ def grammar(g=Grammar("PythonicCSS")):
 	# =========================================================================
 
 	g.rule      ("Assignment",       s.CSS_PROPERTY, s.COLON, s.Expression.oneOrMore())
+	g.rule      ("MacroInvocation",  s.MACRO_NAME,   s.LP, s.Parameters.optional(), s.RP)
 
 	# =========================================================================
 	# BLOCK STRUCTURE
@@ -133,8 +144,8 @@ def grammar(g=Grammar("PythonicCSS")):
 	# of the failures. A good idea would be to append the indentation value to
 	# the caching key.
 	# .processMemoizationKey(lambda _,c:_ + ":" + c.getVariables().get("requiredIndent", 0))
-	g.rule("Statement",     s.CheckIndent, g.agroup(s.Assignment, s.COMMENT), s.EOL).disableFailMemoize()
-	g.rule("Block",         s.CheckIndent, g.agroup(s.Selection, s.PERCENTAGE), s.COLON, s.EOL, s.Indent, s.Code.zeroOrMore(), s.Dedent).disableFailMemoize()
+	g.rule("Statement",     s.CheckIndent, g.agroup(s.Assignment, s.MacroInvocation, s.COMMENT), s.EOL).disableFailMemoize()
+	g.rule("Block",         s.CheckIndent, g.agroup(s.PERCENTAGE, s.SelectionList), s.COLON, s.EOL, s.Indent, s.Code.zeroOrMore(), s.Dedent).disableFailMemoize()
 	s.Code.set(s.Statement, s.Block).disableFailMemoize()
 
 	g.rule    ("SpecialDeclaration",   s.CheckIndent, s.SPECIAL_NAME, s.SPECIAL_FILTER.optional(), s.Parameters.optional(), s.COLON)
