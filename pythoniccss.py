@@ -114,7 +114,7 @@ def grammar(g=Grammar("PythonicCSS")):
 	g.rule      ("Expression")
 	# NOTE: We use Prefix and Suffix to avoid recursion, which creates a lot
 	# of problems with parsing expression grammars
-	g.group     ("Prefix", s.Value, g.arule(s.LP, s.Expression, s.RP))
+	g.group     ("Prefix", s.Value._as("value"), g.arule(s.LP, s.Expression, s.RP))
 	s.Expression.set(s.Prefix, s.Suffixes.zeroOrMore())
 
 	g.rule      ("MethodInvocation",     s.DOT,     s.METHOD_NAME, s.LP, s.Parameters.optional(), s.RP)
@@ -201,6 +201,10 @@ class Processor:
 				r.action = wrapper
 		return g
 
+	# ==========================================================================
+	# GRAMMAR RULES
+	# ==========================================================================
+
 	def onCOLOR_NAME(self, context, result ):
 		return (result.group())
 
@@ -215,6 +219,12 @@ class Processor:
 
 	def onValue( self, context, result ):
 		return result.data
+
+	# def onPrefix( self, context, result, value ):
+	# 	if not value:
+	# 		return result[1].data[1]
+	# 	else:
+	# 		return value
 
 	def onExpression( self, context, result ):
 		prefix = result[0].data.data
@@ -235,7 +245,7 @@ class Processor:
 		reference."""
 		scope  = context.text[scope] if type(scope) == int else scope  and scope.group()  or ""
 		nid    = nid    and nid.group()    or ""
-		suffix = suffix and suffix.group() or ""
+		suffix = "".join([_.data.group() for _ in suffix]) or ""
 		nclass = "".join([_.data.group() for _ in nclass]) if isinstance(nclass, list) else nclass and nclass.group() or ""
 		if (scope or nid or nclass or attributes or suffix):
 			return [scope, nid, nclass, attributes or "", suffix]
@@ -265,7 +275,6 @@ class Processor:
 		# head is s.Selection
 		head   = [head]
 		# tail is [[s.COMMA, s.Selection], ...]
-		print ("TAIL", tail)
 		tail   = [_.data[1].data for _ in tail or []]
 		scopes = head + tail
 		# We want to epxand the `&` in the scopes
@@ -306,7 +315,7 @@ class Processor:
 		return line
 
 	# ==========================================================================
-	# HELPERS
+	# SCOPE & SELECTION HELPERS
 	# ==========================================================================
 
 	def _listCurrentScopes( self ):
@@ -317,17 +326,26 @@ class Processor:
 		"""Expands the `&` in the list of given scopes."""
 		res = []
 		for scope in scopes:
+			# If you have a look at onSelectionList, you'll see that the
+			# scope is a list of selectors joined by operators, ie:
+			# [ [NODE, ID, CLASS, ATTRIBUTES, SUFFIX], OP, [NODE...], ... ]
 			if scope[0][0] == "&":
 				# If there is an `&` in the scope, we list the
 				# curent scopes and merge the scope with them
-				scope[0][0] = None
+				scope[0][0] = ''
 				for full_scope in self._listCurrentScopes():
-					res.append(self._mergeScopes(scope, full_scope))
+					# This is a tricky operation, but we get the very first
+					# selector of the given scope, which starts with an &,
+					# merge it with the most specific part of the current
+					# scopes and prepend the rest of th full scope.
+					merged = self._mergeScopes(scope[0], full_scope[-1])
+					res.append(full_scope[0:-1] + [merged])
 			else:
 				res.append(scope)
 		return res
 
 	def _mergeScopeUnit( self, a, b):
+		"""Helper function for _mergeScopes"""
 		if not a: return b
 		if not b: return a
 		return a + b
@@ -367,8 +385,8 @@ def compile(path, treebuilderClass, grammar=None):
 if __name__ == "__main__":
 	import sys, os
 	args = sys.argv[1:]
-	getGrammar().log.verbose = True
-	getGrammar().log.level   = 10
+	# getGrammar().log.verbose = True
+	# getGrammar().log.level   = 10
 	getGrammar().log.enabled = True
 	processor = Processor()
 	g         = processor.bind(getGrammar())
