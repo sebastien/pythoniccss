@@ -106,7 +106,7 @@ def grammar(g=Grammar("PythonicCSS")):
 	# =========================================================================
 
 	g.group     ("Suffixes")
-	g.rule      ("Number",           s.NUMBER, s.UNIT.optional())
+	g.rule      ("Number",           s.NUMBER._as("value"), s.UNIT.optional()._as("unit"))
 	g.group     ("String",           s.STRING_SQ, s.STRING_DQ)
 	g.group     ("Value",            s.Number, s.COLOR_HEX, s.COLOR_RGB, s.REFERENCE, s.COLOR_NAME, s.String)
 	g.rule      ("Parameters",       s.VARIABLE_NAME, g.arule(s.COMMA, s.VARIABLE_NAME).zeroOrMore())
@@ -179,9 +179,13 @@ class Processor:
 		self.reset()
 		self.s      = None
 
+	def _ensureList( self, v ):
+		return list(v) if type(v) not in (tuple, list) else v
+
 	def reset( self ):
 		self.result = []
 		self.indent = 0
+		self.scopes = []
 
 	def bind( self, g ):
 		self.s = s =  g.symbols
@@ -217,7 +221,6 @@ class Processor:
 		suffix = result[1].data
 		if not suffix:
 			return prefix
-		print "EXP", prefix, suffix
 
 	def onAttribute( self, context, result, name, value ):
 		return "[{0}={1}]".format(name.group(), value[1].data.group())
@@ -227,47 +230,109 @@ class Processor:
 		return "".join([head] + tail)
 
 	def onSelector( self, context, result, scope, nid,  nclass, attributes, suffix ):
-		scope  = scope  and scope.group()  or ""
+		"""Selectors are returned as tuples `(scope, id, class, attributes, suffix)`.
+		We need to keep this structure as we need to be able to expand the `&`
+		reference."""
+		scope  = context.text[scope] if type(scope) == int else scope  and scope.group()  or ""
 		nid    = nid    and nid.group()    or ""
 		suffix = suffix and suffix.group() or ""
-		nclass = "".join([_.data.group() for _ in  nclass])
-		if not (scope or nid or nclass or attributes or suffix): return ""
-		else: return "".join((scope, nid, nclass, attributes or "", suffix))
+		nclass = "".join([_.data.group() for _ in nclass]) if isinstance(nclass, list) else nclass.group()
+		if (scope or nid or nclass or attributes or suffix):
+			return [scope, nid, nclass, attributes or "", suffix]
+		else:
+			return None
 
 	def onSelectorNarrower( self, context, result, op, sel ):
+		"""Returns a `(op, selector)` couple."""
 		op = op and (op.group() + " ") or ""
-		return op + (sel or "")
+		return (op, sel) if op or sel else None
 
 	def onSelection( self, context, result, head, tail ):
-		tail = [_.data for _ in tail if _.data]
-		return " ".join([head] + tail)
+		"""Returns a structure like the following:
+		>   [[('div', '', '', '', ''), '> ', ('label', '', '', '', '')]]
+		>   ---SELECTOR------------   OP   --SELECTOR---------------
+		"""
+		res = [head] ; [res.extend(_.data) for _ in tail or [] if _.data]
+		return res
 
 	def onSelectionList( self, context, result, head, tail ):
-		head = [head]
-		tail = [_.data for _ in tail if type(_.data) != int]
-		scope = head + tail
-		self._write(", ".join(scope) + " {", indent=1)
+		"""Updates the current scope and writes the scope selection line."""
+		head   = [head]
+		tail   = [_.data for _ in tail if type(_.data) != int]
+		scopes = [head] + tail
+		# We want to epxand the `&` in the scopes
+		scopes = self._expandScopes(scopes)
+		# And output the full current scope
+		if len(self.scopes) > 0: self._write("}")
+		# We push the expanded scopes in the scopes stack
+		self.scopes.append(scopes)
+		self._write(", ".join((self._selectionAsString(_) for _ in scopes[-1])) + " {")
+
+	def onNumber( self, context, result, value, unit ):
+		value = value.group()
+		value = float(value) if "." in value else int(value)
+		unit  = unit.group() if unit else None
+		return (value, unit)
 
 	def onAssignment( self, context, result, name, values ):
-		return self._write("{0}: {1}; ".format(name, values))
+		return self._write("{0}: {1}; ".format(name, values), indent=1)
 		# name  = values.get("name").group()
 		# value = values.get("value")
 		# return "name: {0}".format(value)
 
 	def onBlock( self, context, result, selector, code ):
-		self._write(indent=-1)
-		self._write("}")
+		if len(self.scopes) == 1:
+			self._write("}")
+		self.scopes.pop()
 
 	def onSource( self, context, result ):
 		return result
 
-	def _write( self, line=None, indent=None ):
-		if line:
-			self.result.append(line)
-			print  ">>>", "\t" * self.indent, line
-		if type(indent) == int:
-			self.indent += indent
+	# ==========================================================================
+	# OUTPUT
+	# ==========================================================================
+
+	def _write( self, line=None, indent=0 ):
+		line = "\t" * indent + line
+		print  ">>>", line
 		return line
+
+	# ==========================================================================
+	# HELPERS
+	# ==========================================================================
+
+	def _listCurrentScopes( self ):
+		"""Lists the current scopes"""
+		return self.scopes[-1]
+
+	def _expandScopes( self, scopes ):
+		"""Expands the `&` in the list of given scopes."""
+		res = []
+		for scope in scopes:
+			if scope[0][0] == "&":
+				# If there is an `&` in the scope, we list the
+				# curent scopes and merge the scope with them
+				scope[0][0] = None
+				for full_scope in self._listCurrentScopes():
+					res.append(self._mergeScopes(scope, full_scope))
+			else:
+				res.append(scope)
+		return res
+
+	def _mergeScopeUnit( self, a, b):
+		if not a: return b
+		if not b: return a
+		return a + b
+
+	def _mergeScopes( self, a, b):
+		# Merges the contents of scope A and B
+		return [self._mergeScopeUnit(a[i], b[i]) or None for i in range(len(a))]
+
+	def _scopeAsString( self, scope ):
+		return "".join(_ or "" for _ in scope)
+
+	def _selectionAsString( self, selection ):
+		return "".join(self._scopeAsString(_) if isinstance(_, list) else _ for _ in selection if _)
 
 # -----------------------------------------------------------------------------
 #
