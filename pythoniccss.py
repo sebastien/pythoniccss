@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 from parsing import Grammar
+import ipdb
 
 G = None
 
@@ -132,7 +133,7 @@ def grammar(g=Grammar("PythonicCSS")):
 	# OPERATIONS
 	# =========================================================================
 
-	g.rule      ("Assignment",       s.CSS_PROPERTY, s.COLON, s.Expression.oneOrMore())
+	g.rule      ("Assignment",       s.CSS_PROPERTY._as("name"), s.COLON, s.Expression.oneOrMore()._as("values"))
 	g.rule      ("MacroInvocation",  s.MACRO_NAME,   s.LP, s.Parameters.optional(), s.RP)
 
 	# =========================================================================
@@ -167,7 +168,38 @@ def grammar(g=Grammar("PythonicCSS")):
 # -----------------------------------------------------------------------------
 
 class Processor:
-	"""Processes the raw grammar output and directly outputs the CSS code."""
+	"""Replaces some of the grammar's symbols processing functions."""
+
+	def __init__( self ):
+		self.result = []
+		self.s      = None
+
+	def bind( self, g ):
+		self.s = s =  g.symbols
+		for name in dir(s):
+			r = getattr(s, name)
+			n = "on" + name
+			m = hasattr(self, n)
+			if r and m:
+				print "BOUND", n
+				r.action = getattr(self, n)
+		return g
+
+	def onCOLOR_NAME(self, context, result  ):
+		return result.group()
+
+	def onCSS_PROPERTY(self, context, result  ):
+		return result.group()
+
+	def onAssignment( self, context, result ):
+		print  "DATA", result[0].data.data
+		return result
+		# name  = values.get("name").group()
+		# value = values.get("value")
+		# return "name: {0}".format(value)
+
+	def onSource( self, context, result ):
+		return result
 
 # -----------------------------------------------------------------------------
 #
@@ -195,23 +227,11 @@ if __name__ == "__main__":
 	import sys, os
 	args = sys.argv[1:]
 	getGrammar().log.verbose = True
-	getGrammar().log.level   = 100
-	getGrammar().log.enabled = True
+	# getGrammar().log.level   = 10
+	# getGrammar().log.enabled = True
+	processor = Processor()
+	g         = processor.bind(getGrammar())
 	for path in args:
-		print parse(path)
+		result = parse(path, g)
 
-# Todo, what should happen:
-# """
-# Parser failed with rest:  'div:\n\twidth: 100%\n'
-#  at line (0, 0)
-#     div:
-#  *
-# 	width: 100%
-#
-# Parse tree is:
-# 	Source(a=xx,b=xxx,c=xxx)
-# 		XXX..
-# 			XXX.
-# None
-# """
 # EOF

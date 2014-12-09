@@ -77,6 +77,8 @@ div[data-type=1.0]:
 div#Application.widget.application[data-type=Application]:hover:
 	font-size: 100%
 
+// -webkit-placeholder:
+
 // Includes
 // ========
 // 
@@ -119,7 +121,7 @@ label2:
 // by calling the macro with `<NAME>()`
 
 @macro cleared:
-	clear:   both
+	clear:   bothAA
 	content: ""
 	display: block
 	height:  0em
@@ -149,6 +151,10 @@ div.cleared:
 		background: red
 	100%:
 		background: yellow
+
+// Automatic prefixing of non-standard properties
+
+transition-propery: transform filter
 
 // Font-Face
 // ==============
