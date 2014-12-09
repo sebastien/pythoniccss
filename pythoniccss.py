@@ -47,7 +47,7 @@ def grammar(g=Grammar("PythonicCSS")):
 	g.token   ("NUMBER",           "-?(0x)?[0-9]+(\.[0-9]+)?")
 	g.token   ("ATTRIBUTE",        "[a-zA-Z\-_][a-zA-Z0-9\-_]*")
 	g.token   ("ATTRIBUTE_VALUE",  "\"[^\"]*\"|'[^']*'|[^,\]]+")
-	g.token   ("SELECTOR_SUFFIX",  ":[a-z][a-z0-9\-]*(\([0-9]+\))?")
+	g.token   ("SELECTOR_SUFFIX",  ":[\-a-z][a-z0-9\-]*(\([0-9]+\))?")
 	g.token   ("SELECTION_OPERATOR", "\>|\s+")
 	g.word    ("INCLUDE",             "%include")
 	g.word    ("COLON",            ":")

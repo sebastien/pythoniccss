@@ -3,11 +3,16 @@
 // == version 0.0.1
 // -- Updated: 2014-12-08
 // 
-// PythonicCSS is a pre-compiler that outputs CSS, inspired by CleverCSS and
-// its Python-like use of indentation to express structure. PythonicCSS can be
-// thought of a CleverCSS 2.0, but as it does have a fully compatible syntax it
+// PythonicCSS is a pre-compiler that outputs CSS. It was originally intended
+// to be CleverCSS 2.0, but as it does not have a fully compatible syntax it
 // did not make sense to keep the same name.
-// 
+//
+// PythonicCSS has the following features:
+//
+// - Indentation-based structure
+// - Automatic prefixing
+// - Full CSS3 support (animation, media queries, calc, etc)
+// - Modularity (includes) and mixins
 //
 // Syntax Overview
 // ===============
@@ -77,7 +82,62 @@ div[data-type=1.0]:
 div#Application.widget.application[data-type=Application]:hover:
 	font-size: 100%
 
-// -webkit-placeholder:
+// Some rules will also be automatically prefixed, for instance:
+
+-placeholder:
+
+// will generate:
+//
+// >   -moz-placeholder, -webkit-placeholder
+//
+//
+// Properties & Expressions
+// ========================
+//
+// Property values can be expressed relatively to defined variables and also
+// using computations. You can pre-calculate expressions before CSS rendering
+// by using PCSS's expressions, or defer the evaluation with CSS3's calc function.
+
+// The following will output 35em
+
+width: 10em * 3.5
+
+// While the following will output calc(10em * 3.5)
+width: calc(10em * 3.5)
+
+// PCSS allows for implicit concatenation, as shown in the example below
+
+label1:
+	padding: $foo + 2 + 3 $foo - 2
+
+label2:
+	padding: ($foo + 2 + 3) ($foo - 2)
+
+// Automatic Prefixing
+// ===================
+//
+// PCSS know about which properties and litteral property values to
+// prefix. For instance, in the following example
+// `transition-property`, `transform` and `filter` will be generated
+// with their corresponding vendor prefixes.
+
+transition-property: color transform filter
+
+// Some properties, such as gradients can have different syntaxes, depending
+// on the browser. If CSS3 does not already have a recommendation, WebKit's 
+// format will be chosen.
+
+background: linear-gradient(to bottom, #1e5799 0%, #2989d8 50%, #207cca 51%, #7db9e8 100%)
+
+// will generated the following CSS code (thanks http://www.colorzilla.com/gradient-editor/)
+//
+// >    background: #1e5799;
+// >    background: -moz-linear-gradient(top,  #1e5799 0%, #2989d8 50%, #207cca 51%, #7db9e8 100%);
+// >    background: -webkit-linear-gradient(top,  #1e5799 0%,#2989d8 50%,#207cca 51%,#7db9e8 100%);
+// >    background: -o-linear-gradient(top,  #1e5799 0%,#2989d8 50%,#207cca 51%,#7db9e8 100%);
+// >    background: -ms-linear-gradient(top,  #1e5799 0%,#2989d8 50%,#207cca 51%,#7db9e8 100%);
+// >    background: linear-gradient(to bottom,  #1e5799 0%,#2989d8 50%,#207cca 51%,#7db9e8 100%);
+// >    filter: progid:DXImageTransform.Microsoft.gradient( startColorstr='#1e5799', endColorstr='#7db9e8',GradientType=0 );
 
 // Includes
 // ========
@@ -104,13 +164,7 @@ PAD                  = 20 * $PX
 BACKGROUND_COLOR     = white
 BACKGROUND_COLOR_ALT = #F0F0F0
 
-// PCSS allows for implicit concatenation, as shown in the example below
 
-label1:
-	padding: $foo + 2 + 3 $foo - 2
-
-label2:
-	padding: ($foo + 2 + 3) ($foo - 2)
 
 // Macros
 // ======
@@ -152,9 +206,6 @@ div.cleared:
 	100%:
 		background: yellow
 
-// Automatic prefixing of non-standard properties
-
-transition-propery: transform filter
 
 // Font-Face
 // ==============

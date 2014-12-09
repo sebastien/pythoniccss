@@ -1,0 +1,88 @@
+<div class="document use-texto">
+<div class="title"><h1>PythonicCSS</h1><h2>version 0.0.1</h2></div><table class='meta'><tr><td width='0px' class='name'>Updated</td><td width='100%' class='value'>2014-12-08</td></tr></table>
+<div class='content'><p>PythonicCSS is a pre-compiler that outputs CSS. It was originally intended to be CleverCSS 2.0, but as it does not have a fully compatible syntax it did not make sense to keep the same name.</p><p>PythonicCSS has the following features:</p><ul><li>Indentation-based structure </li><li>Automatic prefixing </li><li>Full CSS3 support (animation, media queries, calc, etc) </li><li>Modularity (includes) and mixins</li></ul><div class="section level-1" data-level="1"><div class="header"><h1><span class="number"><span class="level-0">1<span class="lastDot dot">.</span></span></span>Syntax Overview</h1></div><div class="body"><div class='content'><p>PythonicCSS's syntax is based on indentation, just like in Python. The main difference is that PythonicCSS is stricter and always expects the right amount of indentation and the use of tabs (not spaces) to do so.</p><p>Here's an example of what PythonicCSS looks like (this example is actually the same from CleverCSS's documentation).</p><pre> ul#comments, ol#comments:
+ 	margin: 0
+ 	padding: 0
+ 	li:
+ 		padding: 0.4em
+ 		margin: 0.8em 0 0.8em
+ 	h3:
+ 	  font-size: 1.2em
+ 	p:
+ 	  padding: 0.3em
+ 	p.meta:
+ 	  text-align: right
+ 	  color: #ddd</pre></div></div></div><div class="section level-1" data-level="1"><div class="header"><h1><span class="number"><span class="level-0">2<span class="lastDot dot">.</span></span></span>Selectors &amp; Rules</h1></div><div class="body"><div class='content'><p>You can use any CSS-like selector in you rules. You can use <code>,</code> to separate the selectors on a single line and <code>&amp;</code> to refer to the parent selector in a nested rule.</p><pre>
+ A = 10
+ div:
+ 	color:      #FF00FF
+ 	content:    "asdasdd"
+ 	background: #FFAAAAAA.brighten() 
+ 	width:      10em * 1.0 + ($A * 10 / 2)
+ 	animation:  name 5s
+ div, span:
+ 	font-size: 100%
+ div:
+ 	&amp;:first-child:
+ 		color: red
+ 	&amp;:last-child:
+ 		color: green
+ 	&amp;:nth-child(2):
+ 		color: yellow
+ .Application:
+ 	&amp;.with-base:
+ 		background: 200%
+ #Application:
+ 	font-size: 100%
+ div[data-type=1.0]:
+ 	font-size: 100%
+ *[data-type=1.0]:hover:
+ 	font-size: 100%
+ div#Application.widget.application[data-type=Application]:hover:
+ 	font-size: 100%</pre><p>Some rules will also be automatically prefixed, for instance:</p><pre>
+ -placeholder:</pre><p>will generate:</p><pre>-moz-placeholder, -webkit-placeholder</pre></div></div></div><div class="section level-1" data-level="1"><div class="header"><h1><span class="number"><span class="level-0">3<span class="lastDot dot">.</span></span></span>Properties &amp; Expressions</h1></div><div class="body"><div class='content'><p>Property values can be expressed relatively to defined variables and also using computations. You can pre-calculate expressions before CSS rendering by using PCSS's expressions, or defer the evaluation with CSS3's calc function. The following will output 35em</p><pre>
+ width: 10em * 3.5</pre><p>While the following will output calc(10em * 3.5)</p><pre>
+ width: calc(10em * 3.5)</pre><p>PCSS allows for implicit concatenation, as shown in the example below</p><pre>
+ label1:
+ 	padding: $foo + 2 + 3 $foo - 2
+ label2:
+ 	padding: ($foo + 2 + 3) ($foo - 2)</pre></div></div></div><div class="section level-1" data-level="1"><div class="header"><h1><span class="number"><span class="level-0">4<span class="lastDot dot">.</span></span></span>Automatic Prefixing</h1></div><div class="body"><div class='content'><p>PCSS know about which properties and litteral property values to prefix. For instance, in the following example <code>transition-property</code>, <code>transform</code> and <code>filter</code> will be generated with their corresponding vendor prefixes.</p><pre>
+ transition-property: color transform filter</pre><p>Some properties, such as gradients can have different syntaxes, depending on the browser. If CSS3 does not already have a recommendation, WebKit's format will be chosen.</p><pre>
+ background: linear-gradient(to bottom, #1e5799 0%, #2989d8 50%, #207cca 51%, #7db9e8 100%)</pre><p>will generated the following CSS code (thanks <a href="http://www.colorzilla.com/gradient-editor/)" target="_blank">http://www.colorzilla.com/gradient-editor/)</a></p></div></div></div><div class="section level-1" data-level="1"><div class="header"><h1><span class="number"><span class="level-0">5<span class="lastDot dot">.</span></span></span><pre> background: #1e5799;
+ background: -moz-linear-gradient(top,  #1e5799 0%, #2989d8 50%, #207cca 51%, #7db9e8 100%);
+ background: -webkit-linear-gradient(top,  #1e5799 0%,#2989d8 50%,#207cca 51%,#7db9e8 100%);
+ background: -o-linear-gradient(top,  #1e5799 0%,#2989d8 50%,#207cca 51%,#7db9e8 100%);
+ background: -ms-linear-gradient(top,  #1e5799 0%,#2989d8 50%,#207cca 51%,#7db9e8 100%);
+ background: linear-gradient(to bottom,  #1e5799 0%,#2989d8 50%,#207cca 51%,#7db9e8 100%);
+ filter: progid:DXImageTransform.Microsoft.gradient( startColorstr='#1e5799', endColorstr='#7db9e8',GradientType=0 );
+</pre>Includes</h1></div><div class="body"><div class='content'><dl><dt>Syntax</dt><dd><div class='content'><code>%include &lt;PATH.pcss&gt;</code></div></dd><p>The <code>PATH</code> will be resolved relatively to the current file, and if not found will be resolved relatively to the current working directory.</p></dl><pre>
+ %include test-include.pcss</pre></div></div></div><div class="section level-1" data-level="1"><div class="header"><h1><span class="number"><span class="level-0">6<span class="lastDot dot">.</span></span></span>Variables</h1></div><div class="body"><div class='content'><p>Variables are declared at the beginning of the file, and can have any type of expression. Note that variables are not evaluated until referenced.</p><p>Variables are expected to be <code>UPPER_CASE</code>.</p><pre>
+ FONT_SIZE            = 14
+ PX                   = 1em / $FONT_SIZE
+ PAD                  = 20 * $PX
+ BACKGROUND_COLOR     = white
+ BACKGROUND_COLOR_ALT = #F0F0F0</pre></div></div></div><div class="section level-1" data-level="1"><div class="header"><h1><span class="number"><span class="level-0">7<span class="lastDot dot">.</span></span></span>Macros</h1></div><div class="body"><div class='content'><dl><dt>Syntax</dt><dd><div class='content'><code>@macro &lt;NAME&gt; &lt;ARG?&gt;...:</code></div></dd><p>Macros allow to define common properties that can be applied all at once using by calling the macro with <code>&lt;NAME&gt;()</code></p></dl><pre>
+ @macro cleared:
+ 	clear:   bothAA
+ 	content: ""
+ 	display: block
+ 	height:  0em
+ div.cleared:
+ 	cleared()</pre></div></div></div><div class="section level-1" data-level="1"><div class="header"><h1><span class="number"><span class="level-0">8<span class="lastDot dot">.</span></span></span>CSS animations</h1></div><div class="body"><div class='content'><dl><dt>Syntax</dt><dd><div class='content'><code>@animation &lt;NAME&gt;:</code></div></dd><p>CSS animations can be defined just like in CSS3, using <code>from/to</code> or percentages to define the frames. You can use property groups and macros just like in any other PCSS block. Keyframes with from/to</p></dl><pre>
+ @keyframes animation1:
+ 	from:
+ 		background: red
+ 	to:
+ 		background: yellow</pre><p>Keyframes with %</p><pre>
+ @keyframes animation2:
+ 	0%:
+ 		background: red
+ 	100%:
+ 		background: yellow</pre></div></div></div><div class="section level-1" data-level="1"><div class="header"><h1><span class="number"><span class="level-0">9<span class="lastDot dot">.</span></span></span>Font-Face</h1></div><div class="body"><div class='content'><dl><dt>Syntax</dt><dd><div class='content'><code>@font-face &lt;NAME&gt;:</code><pre>
+ @font-face:
+ 	font-family: asdas</pre></div></dd></dl></div></div></div><div class="section level-1" data-level="1"><div class="header"><h1><span class="number"><span class="level-0">10<span class="lastDot dot">.</span></span></span>Media queries</h1></div><div class="body"><div class='content'><dl><dt>Syntax</dt><dd><div class='content'><code>@media[&lt;CONSTRAINTS&gt;]</code><pre>
+ @media[screen and (max-width: 300px)]:
+ 	body:
+ 		background-color: lightblue</pre></div></dd></dl></div></div></div></div>
+
+</div>
