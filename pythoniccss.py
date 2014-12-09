@@ -92,14 +92,14 @@ def grammar(g=Grammar("PythonicCSS")):
 	g.procedure ("Dedent",           doDedent)
 	g.rule      ("CheckIndent",      s.TABS.bindAs("tabs"), g.acondition(doCheckIndent)).disableMemoize ()
 
-	g.rule      ("Attribute",        s.ATTRIBUTE, g.arule(s.EQUAL, s.ATTRIBUTE_VALUE).optional())
-	g.rule      ("Attributes",       s.LSBRACKET, s.Attribute, g.arule(s.COMMA, s.Attribute).zeroOrMore(), s.RSBRACKET)
+	g.rule      ("Attribute",        s.ATTRIBUTE._as("name"), g.arule(s.EQUAL, s.ATTRIBUTE_VALUE).optional()._as("value"))
+	g.rule      ("Attributes",       s.LSBRACKET, s.Attribute._as("head"), g.arule(s.COMMA, s.Attribute).zeroOrMore()._as("tail"), s.RSBRACKET)
 
-	g.rule      ("Selector",         g.agroup(s.SELF, s.NODE).optional(), s.NODE_ID.optional(), s.NODE_CLASS.zeroOrMore(), s.Attributes.optional(), s.SELECTOR_SUFFIX.zeroOrMore())
-	g.rule      ("SelectorNarrower", s.SELECTION_OPERATOR.optional(), s.Selector)
+	g.rule      ("Selector",         g.agroup(s.SELF, s.NODE).optional()._as("scope"), s.NODE_ID.optional()._as("nid"), s.NODE_CLASS.zeroOrMore()._as("nclass"), s.Attributes.optional()._as("attributes"), s.SELECTOR_SUFFIX.zeroOrMore()._as("suffix"))
+	g.rule      ("SelectorNarrower", s.SELECTION_OPERATOR.optional()._as("op"), s.Selector._as("sel"))
 
-	g.rule      ("Selection",        g.agroup(s.Selector), s.SelectorNarrower.zeroOrMore ())
-	g.rule      ("SelectionList",    s.Selection, g.arule(s.COMMA, s.Selection).zeroOrMore())
+	g.rule      ("Selection",        g.agroup(s.Selector)._as("head"), s.SelectorNarrower.zeroOrMore()._as("tail"))
+	g.rule      ("SelectionList",    s.Selection._as("head"), g.arule(s.COMMA, s.Selection).zeroOrMore()._as("tail"))
 
 	# =========================================================================
 	# VALUES & EXPRESSIONS
@@ -146,7 +146,7 @@ def grammar(g=Grammar("PythonicCSS")):
 	# the caching key.
 	# .processMemoizationKey(lambda _,c:_ + ":" + c.getVariables().get("requiredIndent", 0))
 	g.rule("Statement",     s.CheckIndent, g.agroup(s.Assignment, s.MacroInvocation, s.COMMENT), s.EOL).disableFailMemoize()
-	g.rule("Block",         s.CheckIndent, g.agroup(s.PERCENTAGE, s.SelectionList), s.COLON, s.EOL, s.Indent, s.Code.zeroOrMore(), s.Dedent).disableFailMemoize()
+	g.rule("Block",         s.CheckIndent, g.agroup(s.PERCENTAGE, s.SelectionList)._as("selector"), s.COLON, s.EOL, s.Indent, s.Code.zeroOrMore()._as("code"), s.Dedent).disableFailMemoize()
 	s.Code.set(s.Statement, s.Block).disableFailMemoize()
 
 	g.rule    ("SpecialDeclaration",   s.CheckIndent, s.SPECIAL_NAME, s.SPECIAL_FILTER.optional(), s.Parameters.optional(), s.COLON)
@@ -167,12 +167,21 @@ def grammar(g=Grammar("PythonicCSS")):
 #
 # -----------------------------------------------------------------------------
 
+class Color:
+
+	def __init__( self, value ):
+		self.value = value
+
 class Processor:
 	"""Replaces some of the grammar's symbols processing functions."""
 
 	def __init__( self ):
-		self.result = []
+		self.reset()
 		self.s      = None
+
+	def reset( self ):
+		self.result = []
+		self.indent = 0
 
 	def bind( self, g ):
 		self.s = s =  g.symbols
@@ -181,25 +190,84 @@ class Processor:
 			n = "on" + name
 			m = hasattr(self, n)
 			if r and m:
-				print "BOUND", n
-				r.action = getattr(self, n)
+				method = getattr(self, n)
+				def wrapper(context, result, rule=r, method=method):
+					values = dict( (k, rule.resolveData(k, result)) for k in rule.listBoundSymbols() )
+					return method(context, result, **values)
+				r.action = wrapper
 		return g
 
-	def onCOLOR_NAME(self, context, result  ):
+	def onCOLOR_NAME(self, context, result ):
+		return (result.group())
+
+	def onCOLOR_HEX(self, context, result ):
+		return (result.group())
+
+	def onCOLOR_RGB(self, context, result ):
+		return (result.group())
+
+	def onCSS_PROPERTY(self, context, result ):
 		return result.group()
 
-	def onCSS_PROPERTY(self, context, result  ):
-		return result.group()
+	def onValue( self, context, result ):
+		return result.data
 
-	def onAssignment( self, context, result ):
-		print  "DATA", result[0].data.data
-		return result
+	def onExpression( self, context, result ):
+		prefix = result[0].data.data
+		suffix = result[1].data
+		if not suffix:
+			return prefix
+		print "EXP", prefix, suffix
+
+	def onAttribute( self, context, result, name, value ):
+		return "[{0}={1}]".format(name.group(), value[1].data.group())
+
+	def onAttributes( self, context, result, head, tail ):
+		tail = [_.data[1].data for _ in tail]
+		return "".join([head] + tail)
+
+	def onSelector( self, context, result, scope, nid,  nclass, attributes, suffix ):
+		scope  = scope  and scope.group()  or ""
+		nid    = nid    and nid.group()    or ""
+		suffix = suffix and suffix.group() or ""
+		nclass = "".join([_.data.group() for _ in  nclass])
+		if not (scope or nid or nclass or attributes or suffix): return ""
+		else: return "".join((scope, nid, nclass, attributes or "", suffix))
+
+	def onSelectorNarrower( self, context, result, op, sel ):
+		op = op and (op.group() + " ") or ""
+		return op + (sel or "")
+
+	def onSelection( self, context, result, head, tail ):
+		tail = [_.data for _ in tail if _.data]
+		return " ".join([head] + tail)
+
+	def onSelectionList( self, context, result, head, tail ):
+		head = [head]
+		tail = [_.data for _ in tail if type(_.data) != int]
+		scope = head + tail
+		self._write(", ".join(scope) + " {", indent=1)
+
+	def onAssignment( self, context, result, name, values ):
+		return self._write("{0}: {1}; ".format(name, values))
 		# name  = values.get("name").group()
 		# value = values.get("value")
 		# return "name: {0}".format(value)
 
+	def onBlock( self, context, result, selector, code ):
+		self._write(indent=-1)
+		self._write("}")
+
 	def onSource( self, context, result ):
 		return result
+
+	def _write( self, line=None, indent=None ):
+		if line:
+			self.result.append(line)
+			print  ">>>", "\t" * self.indent, line
+		if type(indent) == int:
+			self.indent += indent
+		return line
 
 # -----------------------------------------------------------------------------
 #
