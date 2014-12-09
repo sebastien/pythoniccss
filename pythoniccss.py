@@ -48,7 +48,7 @@ def grammar(g=Grammar("PythonicCSS")):
 	g.token   ("ATTRIBUTE",        "[a-zA-Z\-_][a-zA-Z0-9\-_]*")
 	g.token   ("ATTRIBUTE_VALUE",  "\"[^\"]*\"|'[^']*'|[^,\]]+")
 	g.token   ("SELECTOR_SUFFIX",  ":[a-z][a-z0-9\-]*(\([0-9]+\))?")
-	g.token   ("SELECTION_OPERATOR", "\>")
+	g.token   ("SELECTION_OPERATOR", "\>|\s+")
 	g.word    ("INCLUDE",             "%include")
 	g.word    ("COLON",            ":")
 	g.word    ("DOT",              ".")
@@ -96,7 +96,7 @@ def grammar(g=Grammar("PythonicCSS")):
 	g.rule      ("Attributes",       s.LSBRACKET, s.Attribute._as("head"), g.arule(s.COMMA, s.Attribute).zeroOrMore()._as("tail"), s.RSBRACKET)
 
 	g.rule      ("Selector",         g.agroup(s.SELF, s.NODE).optional()._as("scope"), s.NODE_ID.optional()._as("nid"), s.NODE_CLASS.zeroOrMore()._as("nclass"), s.Attributes.optional()._as("attributes"), s.SELECTOR_SUFFIX.zeroOrMore()._as("suffix"))
-	g.rule      ("SelectorNarrower", s.SELECTION_OPERATOR.optional()._as("op"), s.Selector._as("sel"))
+	g.rule      ("SelectorNarrower", s.SELECTION_OPERATOR._as("op"), s.Selector._as("sel"))
 
 	g.rule      ("Selection",        g.agroup(s.Selector)._as("head"), s.SelectorNarrower.zeroOrMore()._as("tail"))
 	g.rule      ("SelectionList",    s.Selection._as("head"), g.arule(s.COMMA, s.Selection).zeroOrMore()._as("tail"))
@@ -236,7 +236,7 @@ class Processor:
 		scope  = context.text[scope] if type(scope) == int else scope  and scope.group()  or ""
 		nid    = nid    and nid.group()    or ""
 		suffix = suffix and suffix.group() or ""
-		nclass = "".join([_.data.group() for _ in nclass]) if isinstance(nclass, list) else nclass.group()
+		nclass = "".join([_.data.group() for _ in nclass]) if isinstance(nclass, list) else nclass and nclass.group() or ""
 		if (scope or nid or nclass or attributes or suffix):
 			return [scope, nid, nclass, attributes or "", suffix]
 		else:
@@ -244,7 +244,7 @@ class Processor:
 
 	def onSelectorNarrower( self, context, result, op, sel ):
 		"""Returns a `(op, selector)` couple."""
-		op = op and (op.group() + " ") or ""
+		op = op and (op.group().strip() + " ") or ""
 		return (op, sel) if op or sel else None
 
 	def onSelection( self, context, result, head, tail ):
@@ -252,21 +252,29 @@ class Processor:
 		>   [[('div', '', '', '', ''), '> ', ('label', '', '', '', '')]]
 		>   ---SELECTOR------------   OP   --SELECTOR---------------
 		"""
-		res = [head] ; [res.extend(_.data) for _ in tail or [] if _.data]
+		res = [head]
+		for _ in tail or []:
+			if type(_) in (str, unicode, list, tuple):
+				res.append(_)
+			else:
+				res.extend(_.data)
 		return res
 
 	def onSelectionList( self, context, result, head, tail ):
 		"""Updates the current scope and writes the scope selection line."""
+		# head is s.Selection
 		head   = [head]
-		tail   = [_.data for _ in tail if type(_.data) != int]
-		scopes = [head] + tail
+		# tail is [[s.COMMA, s.Selection], ...]
+		print ("TAIL", tail)
+		tail   = [_.data[1].data for _ in tail or []]
+		scopes = head + tail
 		# We want to epxand the `&` in the scopes
 		scopes = self._expandScopes(scopes)
 		# And output the full current scope
 		if len(self.scopes) > 0: self._write("}")
 		# We push the expanded scopes in the scopes stack
 		self.scopes.append(scopes)
-		self._write(", ".join((self._selectionAsString(_) for _ in scopes[-1])) + " {")
+		self._write(", ".join((self._selectionAsString(_) for _ in self.scopes[-1])) + " {")
 
 	def onNumber( self, context, result, value, unit ):
 		value = value.group()
@@ -360,8 +368,8 @@ if __name__ == "__main__":
 	import sys, os
 	args = sys.argv[1:]
 	getGrammar().log.verbose = True
-	# getGrammar().log.level   = 10
-	# getGrammar().log.enabled = True
+	getGrammar().log.level   = 10
+	getGrammar().log.enabled = True
 	processor = Processor()
 	g         = processor.bind(getGrammar())
 	for path in args:
