@@ -1,10 +1,11 @@
 #!/usr/bin/env python
-from parsing import Grammar
+from parsing import Grammar, Engine
 import re, reporter
 import ipdb
 
 G = None
-_, _, _, warning, error, fatal = reporter.bind("PythonicCSS")
+E = None
+_, _, info, warning, error, fatal = reporter.bind("PythonicCSS")
 
 # -----------------------------------------------------------------------------
 #
@@ -541,16 +542,21 @@ def getGrammar():
 	if not G: G = grammar ()
 	return G
 
-def parse(path, grammar=None):
+def getEngine():
+	global E
+	if not E: E = Engine(getGrammar())
+	return E
+
+def parse(path):
 	# Parse should return the node tree
 	with open(path, "rb") as f:
-		return (grammar or getGrammar()).parse(f.read())
+		return getGrammar().parse(f.read(), getEngine())
 
-def compile(path, treebuilderClass, grammar=None):
+def compile(path, treebuilderClass):
 	# FIXME: Compile should return the text
 	builder = treebuilderClass(path)
-	grammar = grammar or getGrammar()
-	return builder.build(parse(path, grammar), grammar)
+	grammar = getGrammar()
+	return builder.build(parse(path), grammar)
 
 if __name__ == "__main__":
 	import sys, os
@@ -561,7 +567,13 @@ if __name__ == "__main__":
 	getGrammar().log.enabled = True
 	processor = Processor()
 	g         = processor.bind(getGrammar())
+	def log_failure( engine, context, rest ):
+		l, c = context.getCurrentCoordinates()
+		head, tail = engine.getErrorContext(context)
+		error("Parsing failed at line {0}, char {1} with {2} chars left:\n{3}[ERROR]{4}".format(l,c,len(rest),head,tail))
+	getEngine().onFailureAxiom = log_failure
+	getEngine().onFailureRest  = log_failure
 	for path in args:
-		result = parse(path, g)
+		parse(path)
 
 # EOF
