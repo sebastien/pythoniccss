@@ -10,7 +10,8 @@ _, _, info, warning, error, fatal = reporter.bind("PythonicCSS")
 
 __doc__ = """
 Processor for the PythonicCSS language. This module use a PEG-based parsing
-engine <http://github.com/sebastien/parsing>.
+engine <http://github.com/sebastien/parsing>, which sadly has an important
+performance penalty, but offers greated easy of development/update.
 """
 
 # -----------------------------------------------------------------------------
@@ -48,7 +49,9 @@ def doDedent(context):
 # -----------------------------------------------------------------------------
 
 def grammar(g=Grammar("PythonicCSS")):
-	"""Definition of the grammar for the PythonicCSS language."""
+	"""Definition of the grammar for the PythonicCSS language, using
+	the parsing module parsing elements."""
+
 	s = g.symbols
 	g.token   ("SPACE",            "[ ]+")
 	g.token   ("TABS",             "\t*")
