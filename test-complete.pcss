@@ -102,8 +102,11 @@ div#Application.widget.application[data-type=Application]:hover:
 
 width: 10em * 3.5
 
-// While the following will output calc(10em * 3.5)
-width: calc(10em * 3.5)
+// While the following will output `calc(10em * 3.5)`. Note that we need
+// to pass the expression as a string parameter, as otherwise the the expression
+// will be evaluted by PCSS.
+
+width: calc("10em * 3.5")
 
 // PCSS allows for implicit concatenation, as shown in the example below
 

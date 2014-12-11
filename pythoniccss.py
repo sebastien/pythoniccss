@@ -65,8 +65,9 @@ def grammar(g=Grammar("PythonicCSS")):
 
 	g.token   ("PATH",             "\"[^\"]+\"|'[^']'|[^\s\n]+")
 	g.token   ("PERCENTAGE",       "\d+(\.\d+)?%")
-	g.token   ("STRING_SQ",        "'(\\\\'|[^'\\n])*'")
-	g.token   ("STRING_DQ",        "\"(\\\\\"|[^\"\\n])*\"")
+	g.token   ("STRING_SQ",        "'((\\\\'|[^'\\n])*)'")
+	g.token   ("STRING_DQ",        "\"((\\\\\"|[^\"\\n])*)\"")
+	g.token   ("STRING_UQ",        "^[\s\n\*\;]")
 	g.token   ("INFIX_OPERATOR",   "[\-\+\*\/]")
 
 	g.token   ("NODE",             "\*|([a-zA-Z][a-zA-Z0-9\-]*)")
@@ -109,7 +110,7 @@ def grammar(g=Grammar("PythonicCSS")):
 
 	g.group     ("Suffixes")
 	g.rule      ("Number",           s.NUMBER._as("value"), s.UNIT.optional()._as("unit"))
-	g.group     ("String",           s.STRING_SQ, s.STRING_DQ)
+	g.group     ("String",           s.STRING_UQ, s.STRING_SQ, s.STRING_DQ)
 	g.group     ("Value",            s.Number, s.COLOR_HEX, s.COLOR_RGB, s.REFERENCE, s.COLOR_NAME, s.String)
 	g.rule      ("Parameters",       s.VARIABLE_NAME, g.arule(s.COMMA, s.VARIABLE_NAME).zeroOrMore())
 
@@ -119,9 +120,9 @@ def grammar(g=Grammar("PythonicCSS")):
 	g.group     ("Prefix", s.Value, g.arule(s.LP, s.Expression, s.RP))
 	s.Expression.set(s.Prefix, s.Suffixes.zeroOrMore())
 
-	g.rule      ("MethodInvocation",     s.DOT,     s.METHOD_NAME, s.LP, s.Parameters.optional(), s.RP)
+	g.rule      ("Invocation",   g.agroup(s.DOT,     s.METHOD_NAME).optional()._as("method"), s.LP, s.Parameters.optional()._as("parameters"), s.RP)
 	g.rule      ("InfixOperation", s.INFIX_OPERATOR, s.Expression)
-	s.Suffixes.set(s.MethodInvocation, s.InfixOperation)
+	s.Suffixes.set(s.InfixOperation, s.Invocation)
 
 	# =========================================================================
 	# LINES (BODY)
@@ -252,6 +253,13 @@ class Processor:
 			else:
 				r = self.OPERATIONS[o](lv, rv, lu)
 				return r
+		elif e[0] == "I":
+			_, scope, method, params = e
+			r = ""
+			if scope:  r += scope[1]
+			if method: r += "." + method
+			r += "({0})".format(",".join((str(_) for _ in params or [])))
+			return (r, None)
 		else:
 			raise NotImplementedError
 
@@ -271,8 +279,21 @@ class Processor:
 	def onCSS_PROPERTY(self, context, result ):
 		return result.group()
 
+	def onSTRING_DQ(self, context, result ):
+		return result.group(1)
+
+	def onSTRING_SQ(self, context, result ):
+		return result.group(1)
+
 	def onValue( self, context, result ):
 		return ["V", result.data]
+
+	def onParameters( self, context, result ):
+		ipdb.set_trace()
+		return []
+
+	def onInvocation( self, context, result, method, parameters ):
+		return ["I", None, method, parameters]
 
 	def onInfixOperation( self, context, result ):
 		op   = result[0].data
@@ -295,6 +316,8 @@ class Processor:
 		for suffix in suffixes:
 			if suffix[0] == "O":
 				suffix[2] = res
+			elif suffix[0] == "I":
+				suffix[1] = res
 			res = suffix
 		return res
 
@@ -358,6 +381,8 @@ class Processor:
 		return (value, unit)
 
 	def onAssignment( self, context, result, name, values ):
+		print "VALUES", values
+		print "EVAL",  [(self.evaluate(_.data)) for _ in values]
 		try:
 			values = [self._valueAsString(self.evaluate(_.data)) for _ in values]
 		except ProcessingException as e:
@@ -385,7 +410,6 @@ class Processor:
 
 	def _write( self, line=None, indent=0 ):
 		line = "\t" * indent + line
-		print  ">>>", line
 		return line
 
 	# ==========================================================================
