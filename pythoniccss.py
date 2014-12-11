@@ -3,9 +3,15 @@ from parsing import Grammar, Engine
 import re, reporter
 import ipdb
 
-G = None
-E = None
+VERSION = "0.0.1"
+G       = None
+E       = None
 _, _, info, warning, error, fatal = reporter.bind("PythonicCSS")
+
+__doc__ = """
+Processor for the PythonicCSS language. This module use a PEG-based parsing
+engine <http://github.com/sebastien/parsing>.
+"""
 
 # -----------------------------------------------------------------------------
 #
@@ -14,12 +20,14 @@ _, _, info, warning, error, fatal = reporter.bind("PythonicCSS")
 # -----------------------------------------------------------------------------
 
 def doIndent(context):
+	"""Increases the indent requirement in the parsing context"""
 	v = context.getVariables().getParent ()
 	i = v.get("requiredIndent") or 0
 	v.set("requiredIndent", i + 1)
 	return True
 
 def doCheckIndent(context):
+	"""Ensures that the indent requirement is matched."""
 	v          = context.getVariables()
 	tab_match  = context.getVariables().get("tabs")
 	tab_indent = len(tab_match.group())
@@ -27,6 +35,7 @@ def doCheckIndent(context):
 	return tab_indent == req_indent
 
 def doDedent(context):
+	"""Decreases the indent requirement in the parsing context"""
 	v = context.getVariables().getParent ()
 	i = v.get("requiredIndent") or 0
 	v.set("requiredIndent", i - 1)
@@ -39,6 +48,7 @@ def doDedent(context):
 # -----------------------------------------------------------------------------
 
 def grammar(g=Grammar("PythonicCSS")):
+	"""Definition of the grammar for the PythonicCSS language."""
 	s = g.symbols
 	g.token   ("SPACE",            "[ ]+")
 	g.token   ("TABS",             "\t*")
@@ -80,7 +90,7 @@ def grammar(g=Grammar("PythonicCSS")):
 	g.token   ("VARIABLE_NAME",    "[\w_][\w\d_]*")
 	g.token   ("METHOD_NAME",      "[\w_][\w\d_]*")
 	g.token   ("MACRO_NAME",       "[\w_][\w\d_]*")
-	g.token   ("REFERENCE",        "\$[\w_][\w\d_]*")
+	g.token   ("REFERENCE",        "\$([\w_][\w\d_]*)")
 	g.token   ("COLOR_NAME",       "[a-z][a-z0-9\-]*")
 	g.token   ("COLOR_HEX",        "\#([A-Fa-f0-9][A-Fa-f0-9]?[A-Fa-f0-9]?[A-Fa-f0-9]?[A-Fa-f0-9]?[A-Fa-f0-9]?([A-Fa-f0-9][A-Fa-f0-9])?)")
 	g.token   ("COLOR_RGB",        "rgba?\((\s*\d+\s*,\s*\d+\s*,\s*\d+\s*(,\s*\d+(\.\d+)?\s*)?)\)")
@@ -132,7 +142,7 @@ def grammar(g=Grammar("PythonicCSS")):
 
 	g.rule      ("Comment",          s.COMMENT.oneOrMore(), s.EOL)
 	g.rule      ("Include",          s.INCLUDE, s.PATH,     s.EOL)
-	g.rule      ("Declaration",      s.VARIABLE_NAME, s.EQUAL, s.Expression, s.EOL)
+	g.rule      ("Declaration",      s.VARIABLE_NAME._as("name"), s.EQUAL, s.Expression._as("value"), s.EOL)
 
 	# =========================================================================
 	# OPERATIONS
@@ -172,11 +182,6 @@ def grammar(g=Grammar("PythonicCSS")):
 #
 # -----------------------------------------------------------------------------
 
-class Color:
-
-	def __init__( self, value ):
-		self.value = value
-
 class ProcessingException(Exception):
 
 	def __init__( self, message, context=None ):
@@ -191,9 +196,15 @@ class ProcessingException(Exception):
 		return msg
 
 class Processor:
-	"""Replaces some of the grammar's symbols processing functions."""
+	"""Replaces some of the grammar's symbols processing functions. This is
+	the main code that converts the parsing's recognized data to the output
+	CSS. There is not really an intermediate AST (excepted for expressions),
+	and the result is streamed out through the `_write` call."""
+
+	RGB        = None
 
 	RE_SPACES = re.compile("\s+")
+
 	# Defines the operations that are used in `Processor.evaluate`. These
 	# operation take (value, unit) for a and b, and unit is the default
 	# unit that will override the others.
@@ -205,10 +216,10 @@ class Processor:
 		"%" : lambda a,b,u:[a[0] % b[0], a[1] or b[1] or u],
 	}
 
-	RGB = None
 
 	@classmethod
 	def ColorFromName( cls, name ):
+		"""Retrieves the (R,G,B) color triple for the color of the given name."""
 		if not cls.RGB:
 			colors = {}
 			# We extract the color names from X11's rgb file
@@ -223,7 +234,11 @@ class Processor:
 					n = line[12:].lower().strip()
 					colors[n] = (r, g, b)
 			cls.RGB = colors
-		return cls.RGB[name.lower().strip()]
+		name = name.lower().strip()
+		if name not in cls.RGB:
+			raise ProcessingException("Color not found: {0}".format(name))
+		else:
+			return cls.RGB[name.lower().strip()]
 
 	def __init__( self ):
 		self.reset()
@@ -232,9 +247,11 @@ class Processor:
 
 	def reset( self ):
 		"""Resets the state of the processor. To be called inbetween parses."""
-		self.result = []
-		self.indent = 0
-		self.scopes = []
+		self.result     = []
+		self.indent     = 0
+		self.variables  = {}
+		self._evaluated = {}
+		self.scopes     = []
 
 	def bind( self, g ):
 		"""Binds the processor to the given grammar. Should be called just one."""
@@ -255,7 +272,7 @@ class Processor:
 	# EVALUATION
 	# ==========================================================================
 
-	def evaluate( self, e, unit=None ):
+	def evaluate( self, e, unit=None, resolve=True ):
 		"""Evaluates expressions with the internal expression format, which is
 		as follows:
 
@@ -263,7 +280,12 @@ class Processor:
 		- operations are encoded as `('O', operator, lvalue, rvalue)`
 		"""
 		if e[0] == "V":
-			return e[1]
+			v = e[1]
+			if resolve and v[1] == "R":
+				# We have a reference
+				return self.resolve(v[0])
+			else:
+				return v
 		elif e[0] == "O":
 			o  = e[1]
 			lv = self.evaluate(e[2], unit)
@@ -286,6 +308,17 @@ class Processor:
 			return (r, None)
 		else:
 			raise NotImplementedError
+
+	def resolve( self, name ):
+		if name not in self.variables:
+			raise ProcessingException("Variable not defined: {0}".format(name))
+		else:
+			if name in self._evaluated:
+				return self._evaluated[name]
+			else:
+				v = self.evaluate(self.variables[name])
+				self._evaluated[name] = v
+				return v
 
 	# ==========================================================================
 	# GRAMMAR RULES
@@ -312,6 +345,9 @@ class Processor:
 			return [[int(_) for _ in c], "C"]
 		else:
 			return [[int(_) for _ in c[:3] + [float(c[3])]], "C"]
+
+	def onREFERENCE(self, context, result):
+		return (result.group(1), "R")
 
 	def onCSS_PROPERTY(self, context, result ):
 		return result.group()
@@ -425,6 +461,11 @@ class Processor:
 		unit  = unit.group() if unit else None
 		return (value, unit)
 
+	def onDeclaration( self, context, result, name, value ):
+		name = name.group()
+		self.variables[name] = value
+		return None
+
 	def onAssignment( self, context, result, name, values ):
 		try:
 			values = [self._valueAsString(self.evaluate(_.data)) for _ in values]
@@ -435,9 +476,6 @@ class Processor:
 			e.context = context
 			raise e
 		return self._write("{0}: {1}; ".format(name, " ".join(values)), indent=1)
-		# name  = values.get("name").group()
-		# value = values.get("value")
-		# return "name: {0}".format(value)
 
 	def onBlock( self, context, result, selector, code ):
 		if len(self.scopes) == 1:
