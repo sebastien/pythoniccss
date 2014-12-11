@@ -1,11 +1,13 @@
 div:
-	// // We expect the result to be 30
-	// width: 10 + 10 * 80 / 40
-	// // We expect the result to be 40
-	// width: (10 + 10) * 80 / 40 
-	// // We expect the result to be 80
-	// width: (10 + 10) * 80 / (40 - 20) 
-	// // Uncommenting this would fail
-	// // width: 10em * 0.5px
+	// We expect the result to be 30
+	width: 10 + 10 * 80 / 40
+	// We expect the result to be 40
+	width: (10 + 10) * 80 / 40 
+	// We expect the result to be 80
+	width: (10 + 10) * 80 / (40 - 20) 
+	// Uncommenting this would fail
+	// width: 10em * 0.5px
+	width: 10em * 0.5
+	width: 10 * 0.5px
 	// However the following would work as we pass calc a string
 	width: calc("10em + 0.5px")

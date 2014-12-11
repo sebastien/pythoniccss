@@ -113,6 +113,7 @@ def grammar(g=Grammar("PythonicCSS")):
 	g.group     ("String",           s.STRING_UQ, s.STRING_SQ, s.STRING_DQ)
 	g.group     ("Value",            s.Number, s.COLOR_HEX, s.COLOR_RGB, s.REFERENCE, s.COLOR_NAME, s.String)
 	g.rule      ("Parameters",       s.VARIABLE_NAME, g.arule(s.COMMA, s.VARIABLE_NAME).zeroOrMore())
+	g.rule      ("Arguments",        s.Value, g.arule(s.COMMA, s.Value).zeroOrMore())
 
 	g.rule      ("Expression")
 	# NOTE: We use Prefix and Suffix to avoid recursion, which creates a lot
@@ -120,7 +121,7 @@ def grammar(g=Grammar("PythonicCSS")):
 	g.group     ("Prefix", s.Value, g.arule(s.LP, s.Expression, s.RP))
 	s.Expression.set(s.Prefix, s.Suffixes.zeroOrMore())
 
-	g.rule      ("Invocation",   g.agroup(s.DOT,     s.METHOD_NAME).optional()._as("method"), s.LP, s.Parameters.optional()._as("parameters"), s.RP)
+	g.rule      ("Invocation",   g.agroup(s.DOT,     s.METHOD_NAME).optional()._as("method"), s.LP, s.Arguments.optional()._as("arguments"), s.RP)
 	g.rule      ("InfixOperation", s.INFIX_OPERATOR, s.Expression)
 	s.Suffixes.set(s.InfixOperation, s.Invocation)
 
@@ -137,7 +138,7 @@ def grammar(g=Grammar("PythonicCSS")):
 	# =========================================================================
 
 	g.rule      ("Assignment",       s.CSS_PROPERTY._as("name"), s.COLON, s.Expression.oneOrMore()._as("values"))
-	g.rule      ("MacroInvocation",  s.MACRO_NAME,   s.LP, s.Parameters.optional(), s.RP)
+	g.rule      ("MacroInvocation",  s.MACRO_NAME,   s.LP, s.Arguments.optional(), s.RP)
 
 	# =========================================================================
 	# BLOCK STRUCTURE
@@ -205,6 +206,7 @@ class Processor:
 	def __init__( self ):
 		self.reset()
 		self.s      = None
+		self.output = sys.stdout
 
 	def reset( self ):
 		"""Resets the state of the processor. To be called inbetween parses."""
@@ -254,11 +256,11 @@ class Processor:
 				r = self.OPERATIONS[o](lv, rv, lu)
 				return r
 		elif e[0] == "I":
-			_, scope, method, params = e
+			_, scope, method, args = e
 			r = ""
 			if scope:  r += scope[1]
 			if method: r += "." + method
-			r += "({0})".format(",".join((str(_) for _ in params or [])))
+			r += "({0})".format(",".join((self._valueAsString(_) for _ in args or [])))
 			return (r, None)
 		else:
 			raise NotImplementedError
@@ -285,15 +287,23 @@ class Processor:
 	def onSTRING_SQ(self, context, result ):
 		return result.group(1)
 
+	def onSTRING_UQ(self, context, result ):
+		return result.group()
+
+	def onString( self, context, result ):
+		return (result.data, "STR")
+
 	def onValue( self, context, result ):
 		return ["V", result.data]
 
 	def onParameters( self, context, result ):
-		ipdb.set_trace()
-		return []
+		return [result[0].data] + [_[1].data for _ in result[1].data]
 
-	def onInvocation( self, context, result, method, parameters ):
-		return ["I", None, method, parameters]
+	def onArguments( self, context, result ):
+		return [self.evaluate(_) for _ in [result[0].data] + [_[1].data for _ in result[1].data]]
+
+	def onInvocation( self, context, result, method, arguments ):
+		return ["I", None, method, arguments]
 
 	def onInfixOperation( self, context, result ):
 		op   = result[0].data
@@ -381,8 +391,6 @@ class Processor:
 		return (value, unit)
 
 	def onAssignment( self, context, result, name, values ):
-		print "VALUES", values
-		print "EVAL",  [(self.evaluate(_.data)) for _ in values]
 		try:
 			values = [self._valueAsString(self.evaluate(_.data)) for _ in values]
 		except ProcessingException as e:
@@ -409,7 +417,8 @@ class Processor:
 	# ==========================================================================
 
 	def _write( self, line=None, indent=0 ):
-		line = "\t" * indent + line
+		line = "\t" * indent + line + "\n"
+		self.output.write(line)
 		return line
 
 	# ==========================================================================
