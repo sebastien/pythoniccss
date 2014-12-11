@@ -1,8 +1,10 @@
 #!/usr/bin/env python
 from parsing import Grammar
+import reporter
 import ipdb
 
 G = None
+_, _, _, warning, error, fatal = reporter.bind("PythonicCSS")
 
 # -----------------------------------------------------------------------------
 #
@@ -114,7 +116,7 @@ def grammar(g=Grammar("PythonicCSS")):
 	g.rule      ("Expression")
 	# NOTE: We use Prefix and Suffix to avoid recursion, which creates a lot
 	# of problems with parsing expression grammars
-	g.group     ("Prefix", s.Value._as("value"), g.arule(s.LP, s.Expression, s.RP))
+	g.group     ("Prefix", s.Value, g.arule(s.LP, s.Expression, s.RP))
 	s.Expression.set(s.Prefix, s.Suffixes.zeroOrMore())
 
 	g.rule      ("MethodInvocation",     s.DOT,     s.METHOD_NAME, s.LP, s.Parameters.optional(), s.RP)
@@ -172,23 +174,46 @@ class Color:
 	def __init__( self, value ):
 		self.value = value
 
+class ProcessingException(Exception):
+
+	def __init__( self, message, context=None ):
+		Exception.__init__(self, message)
+		self.context = context
+
+	def __str__( self ):
+		msg = self.message
+		if self.context:
+			l, c = self.context.getCurrentCoordinates()
+			msg = "Line {0}, char {1}: {2}".format(l, c, msg)
+		return msg
+
 class Processor:
 	"""Replaces some of the grammar's symbols processing functions."""
+
+	# Defines the operations that are used in `Processor.evaluate`. These
+	# operation take (value, unit) for a and b, and unit is the default
+	# unit that will override the others.
+	OPERATIONS = {
+		"+" : lambda a,b,u:[a[0] + b[0], a[1] or b[1] or u],
+		"-" : lambda a,b,u:[a[0] - b[0], a[1] or b[1] or u],
+		"*" : lambda a,b,u:[a[0] * b[0], a[1] or b[1] or u],
+		"/" : lambda a,b,u:[a[0] / b[0], a[1] or b[1] or u],
+		"%" : lambda a,b,u:[a[0] % b[0], a[1] or b[1] or u],
+	}
 
 	def __init__( self ):
 		self.reset()
 		self.s      = None
 
-	def _ensureList( self, v ):
-		return list(v) if type(v) not in (tuple, list) else v
-
 	def reset( self ):
+		"""Resets the state of the processor. To be called inbetween parses."""
 		self.result = []
 		self.indent = 0
 		self.scopes = []
 
 	def bind( self, g ):
-		self.s = s =  g.symbols
+		"""Binds the processor to the given grammar. Should be called just one."""
+		self.s = s = g.symbols
 		for name in dir(s):
 			r = getattr(s, name)
 			n = "on" + name
@@ -200,6 +225,35 @@ class Processor:
 					return method(context, result, **values)
 				r.action = wrapper
 		return g
+
+	# ==========================================================================
+	# EVALUATION
+	# ==========================================================================
+
+	def evaluate( self, e, unit=None ):
+		"""Evaluates expressions with the internal expression format, which is
+		as follows:
+
+		- values are encoded as `('V', (value, unit))`
+		- operations are encoded as `('O', operator, lvalue, rvalue)`
+		"""
+		if e[0] == "V":
+			return e[1]
+		elif e[0] == "O":
+			o  = e[1]
+			lv = self.evaluate(e[2], unit)
+			rv = self.evaluate(e[3], unit)
+			lu = lv[1]
+			ru = rv[1]
+			lu = lu or ru or unit
+			ru = ru or lu or unit
+			if lu != ru:
+				raise ProcessingException("Incompatible unit types {0} vs {1}".format(lu, ru))
+			else:
+				r = self.OPERATIONS[o](lv, rv, lu)
+				return r
+		else:
+			raise NotImplementedError
 
 	# ==========================================================================
 	# GRAMMAR RULES
@@ -218,19 +272,31 @@ class Processor:
 		return result.group()
 
 	def onValue( self, context, result ):
+		return ["V", result.data]
+
+	def onInfixOperation( self, context, result ):
+		op   = result[0].data
+		expr = result[1].data
+		return ["O", op.group(), None, expr]
+
+	def onSuffixes( self, context, result ):
 		return result.data
 
-	# def onPrefix( self, context, result, value ):
-	# 	if not value:
-	# 		return result[1].data[1]
-	# 	else:
-	# 		return value
+	def onPrefix( self, context, result ):
+		if result.element == self.s.Value:
+			return result.data
+		else:
+			return result.data[1].data
 
 	def onExpression( self, context, result ):
-		prefix = result[0].data.data
-		suffix = result[1].data
-		if not suffix:
-			return prefix
+		prefix   = result[0].data
+		suffixes = [_.data for _ in result[1].data]
+		res      = prefix
+		for suffix in suffixes:
+			if suffix[0] == "O":
+				suffix[2] = res
+			res = suffix
+		return res
 
 	def onAttribute( self, context, result, name, value ):
 		return "[{0}={1}]".format(name.group(), value[1].data.group())
@@ -292,7 +358,15 @@ class Processor:
 		return (value, unit)
 
 	def onAssignment( self, context, result, name, values ):
-		return self._write("{0}: {1}; ".format(name, values), indent=1)
+		try:
+			values = [self._valueAsString(self.evaluate(_.data)) for _ in values]
+		except ProcessingException as e:
+			l, c = context.getCurrentCoordinates()
+			error("{0} at line {1}:".format(e, l))
+			error(">>> {0}".format(context.text[result[0].start:result[-1].end]))
+			e.context = context
+			raise e
+		return self._write("{0}: {1}; ".format(name, " ".join(values)), indent=1)
 		# name  = values.get("name").group()
 		# value = values.get("value")
 		# return "name: {0}".format(value)
@@ -360,6 +434,26 @@ class Processor:
 	def _selectionAsString( self, selection ):
 		return "".join(self._scopeAsString(_) if isinstance(_, list) else _ for _ in selection if _)
 
+	def _valueAsString( self, value ):
+		v, u = value ; u = u or ""
+		if   type(v) == int:
+			return "{0:d}{1}".format(v,u)
+		elif type(v) == float:
+			# We remove the trailing 0 to have the most compact representation
+			v = "{0:f}".format(v)
+			while len(v) > 2 and v[-1] == "0" and v[-2] != ".":
+				v = v[0:-1]
+			return v + u
+		elif type(v) == str:
+			# FIXME: Proper escaping
+			return "{0:s}".format(v,u)
+		elif type(v) == unicode:
+			# FIXME: Proper escaping
+			return "{0:s}".format(v,u)
+		else:
+			raise NotImplementedError
+
+
 # -----------------------------------------------------------------------------
 #
 # CORE FUNCTIONS
@@ -385,6 +479,7 @@ def compile(path, treebuilderClass, grammar=None):
 if __name__ == "__main__":
 	import sys, os
 	args = sys.argv[1:]
+	reporter.install()
 	# getGrammar().log.verbose = True
 	# getGrammar().log.level   = 10
 	getGrammar().log.enabled = True

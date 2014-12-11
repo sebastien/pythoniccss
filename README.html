@@ -48,27 +48,26 @@
  label2:
  	padding: ($foo + 2 + 3) ($foo - 2)</pre></div></div></div><div class="section level-1" data-level="1"><div class="header"><h1><span class="number"><span class="level-0">4<span class="lastDot dot">.</span></span></span>Automatic Prefixing</h1></div><div class="body"><div class='content'><p>PCSS know about which properties and litteral property values to prefix. For instance, in the following example <code>transition-property</code>, <code>transform</code> and <code>filter</code> will be generated with their corresponding vendor prefixes.</p><pre>
  transition-property: color transform filter</pre><p>Some properties, such as gradients can have different syntaxes, depending on the browser. If CSS3 does not already have a recommendation, WebKit's format will be chosen.</p><pre>
- background: linear-gradient(to bottom, #1e5799 0%, #2989d8 50%, #207cca 51%, #7db9e8 100%)</pre><p>will generated the following CSS code (thanks <a href="http://www.colorzilla.com/gradient-editor/)" target="_blank">http://www.colorzilla.com/gradient-editor/)</a></p></div></div></div><div class="section level-1" data-level="1"><div class="header"><h1><span class="number"><span class="level-0">5<span class="lastDot dot">.</span></span></span><pre> background: #1e5799;
- background: -moz-linear-gradient(top,  #1e5799 0%, #2989d8 50%, #207cca 51%, #7db9e8 100%);
- background: -webkit-linear-gradient(top,  #1e5799 0%,#2989d8 50%,#207cca 51%,#7db9e8 100%);
- background: -o-linear-gradient(top,  #1e5799 0%,#2989d8 50%,#207cca 51%,#7db9e8 100%);
- background: -ms-linear-gradient(top,  #1e5799 0%,#2989d8 50%,#207cca 51%,#7db9e8 100%);
- background: linear-gradient(to bottom,  #1e5799 0%,#2989d8 50%,#207cca 51%,#7db9e8 100%);
- filter: progid:DXImageTransform.Microsoft.gradient( startColorstr='#1e5799', endColorstr='#7db9e8',GradientType=0 );
-</pre>Includes</h1></div><div class="body"><div class='content'><dl><dt>Syntax</dt><dd><div class='content'><code>%include &lt;PATH.pcss&gt;</code></div></dd><p>The <code>PATH</code> will be resolved relatively to the current file, and if not found will be resolved relatively to the current working directory.</p></dl><pre>
+ background: linear-gradient(to bottom, #1e5799 0%, #2989d8 50%, #207cca 51%, #7db9e8 100%)</pre><p>will generated the following CSS code (thanks <a href="http://www.colorzilla.com/gradient-editor/)" target="_blank">http://www.colorzilla.com/gradient-editor/)</a></p><pre>background: #1e5799;
+background: -moz-linear-gradient(top,  #1e5799 0%, #2989d8 50%, #207cca 51%, #7db9e8 100%);
+background: -webkit-linear-gradient(top,  #1e5799 0%,#2989d8 50%,#207cca 51%,#7db9e8 100%);
+background: -o-linear-gradient(top,  #1e5799 0%,#2989d8 50%,#207cca 51%,#7db9e8 100%);
+background: -ms-linear-gradient(top,  #1e5799 0%,#2989d8 50%,#207cca 51%,#7db9e8 100%);
+background: linear-gradient(to bottom,  #1e5799 0%,#2989d8 50%,#207cca 51%,#7db9e8 100%);
+filter: progid:DXImageTransform.Microsoft.gradient( startColorstr='#1e5799', endColorstr='#7db9e8',GradientType=0 );</pre></div></div></div><div class="section level-1" data-level="1"><div class="header"><h1><span class="number"><span class="level-0">5<span class="lastDot dot">.</span></span></span>Includes</h1></div><div class="body"><div class='content'><p>The <code>PATH</code> will be resolved relatively to the current file, and if not found will be resolved relatively to the current working directory.</p><pre>
  %include test-include.pcss</pre></div></div></div><div class="section level-1" data-level="1"><div class="header"><h1><span class="number"><span class="level-0">6<span class="lastDot dot">.</span></span></span>Variables</h1></div><div class="body"><div class='content'><p>Variables are declared at the beginning of the file, and can have any type of expression. Note that variables are not evaluated until referenced.</p><p>Variables are expected to be <code>UPPER_CASE</code>.</p><pre>
  FONT_SIZE            = 14
  PX                   = 1em / $FONT_SIZE
  PAD                  = 20 * $PX
  BACKGROUND_COLOR     = white
- BACKGROUND_COLOR_ALT = #F0F0F0</pre></div></div></div><div class="section level-1" data-level="1"><div class="header"><h1><span class="number"><span class="level-0">7<span class="lastDot dot">.</span></span></span>Macros</h1></div><div class="body"><div class='content'><dl><dt>Syntax</dt><dd><div class='content'><code>@macro &lt;NAME&gt; &lt;ARG?&gt;...:</code></div></dd><p>Macros allow to define common properties that can be applied all at once using by calling the macro with <code>&lt;NAME&gt;()</code></p></dl><pre>
+ BACKGROUND_COLOR_ALT = #F0F0F0</pre></div></div></div><div class="section level-1" data-level="1"><div class="header"><h1><span class="number"><span class="level-0">7<span class="lastDot dot">.</span></span></span>Macros</h1></div><div class="body"><div class='content'><p>Macros allow to define common properties that can be applied all at once using by calling the macro with <code>&lt;NAME&gt;()</code></p><pre>
  @macro cleared:
  	clear:   bothAA
  	content: ""
  	display: block
  	height:  0em
  div.cleared:
- 	cleared()</pre></div></div></div><div class="section level-1" data-level="1"><div class="header"><h1><span class="number"><span class="level-0">8<span class="lastDot dot">.</span></span></span>CSS animations</h1></div><div class="body"><div class='content'><dl><dt>Syntax</dt><dd><div class='content'><code>@animation &lt;NAME&gt;:</code></div></dd><p>CSS animations can be defined just like in CSS3, using <code>from/to</code> or percentages to define the frames. You can use property groups and macros just like in any other PCSS block. Keyframes with from/to</p></dl><pre>
+ 	cleared()</pre></div></div></div><div class="section level-1" data-level="1"><div class="header"><h1><span class="number"><span class="level-0">8<span class="lastDot dot">.</span></span></span>CSS3 support</h1></div><div class="body"><div class='content'><div class="section level-2" data-level="2"><div class="header"><h2><span class="number"><span class="level-0">8<span class="dot">.</span></span><span class="level-1">1<span class="lastDot dot">.</span></span></span>Animations</h2></div><div class="body"><div class='content'><p>CSS animations can be defined just like in CSS3, using <code>from/to</code> or percentages to define the frames. You can use property groups and macros just like in any other PCSS block. Keyframes with from/to</p><pre>
  @keyframes animation1:
  	from:
  		background: red
@@ -78,11 +77,12 @@
  	0%:
  		background: red
  	100%:
- 		background: yellow</pre></div></div></div><div class="section level-1" data-level="1"><div class="header"><h1><span class="number"><span class="level-0">9<span class="lastDot dot">.</span></span></span>Font-Face</h1></div><div class="body"><div class='content'><dl><dt>Syntax</dt><dd><div class='content'><code>@font-face &lt;NAME&gt;:</code><pre>
+ 		background: yellow</pre></div></div></div><div class="section level-2" data-level="2"><div class="header"><h2><span class="number"><span class="level-0">8<span class="dot">.</span></span><span class="level-1">2<span class="lastDot dot">.</span></span></span>Font-Face</h2></div><div class="body"><div class='content'><pre>
  @font-face:
- 	font-family: asdas</pre></div></dd></dl></div></div></div><div class="section level-1" data-level="1"><div class="header"><h1><span class="number"><span class="level-0">10<span class="lastDot dot">.</span></span></span>Media queries</h1></div><div class="body"><div class='content'><dl><dt>Syntax</dt><dd><div class='content'><code>@media[&lt;CONSTRAINTS&gt;]</code><pre>
+ 	font-family: asdas</pre></div></div></div><div class="section level-2" data-level="2"><div class="header"><h2><span class="number"><span class="level-0">8<span class="dot">.</span></span><span class="level-1">3<span class="lastDot dot">.</span></span></span>Media queries</h2></div><div class="body"><div class='content'><pre>
  @media[screen and (max-width: 300px)]:
  	body:
- 		background-color: lightblue</pre></div></dd></dl></div></div></div></div>
+ 		background-color: lightblue</pre></div></div></div><div class="section level-2" data-level="2"><div class="header"><h2><span class="number"><span class="level-0">8<span class="dot">.</span></span><span class="level-1">4<span class="lastDot dot">.</span></span></span>Import</h2></div><div class="body"><div class='content'><pre>
+ @import url("import4.css") tv, print;</pre></div></div></div></div></div></div></div>
 
 </div>
