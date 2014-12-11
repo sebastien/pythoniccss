@@ -78,7 +78,7 @@ def grammar(g=Grammar("PythonicCSS")):
 	g.token   ("PERCENTAGE",       "\d+(\.\d+)?%")
 	g.token   ("STRING_SQ",        "'((\\\\'|[^'\\n])*)'")
 	g.token   ("STRING_DQ",        "\"((\\\\\"|[^\"\\n])*)\"")
-	g.token   ("STRING_UQ",        "^[\s\n\*\;]")
+	g.token   ("STRING_UQ",        "[^\s\n\*\;]+")
 	g.token   ("INFIX_OPERATOR",   "[\-\+\*\/]")
 
 	g.token   ("NODE",             "\*|([a-zA-Z][a-zA-Z0-9\-]*)")
@@ -86,7 +86,7 @@ def grammar(g=Grammar("PythonicCSS")):
 	g.token   ("NODE_ID",          "#[a-zA-Z][a-zA-Z0-9\-]*")
 
 	# SEE: http://www.w3schools.com/cssref/css_units.asp
-	g.token   ("UNIT",             "em|ex|px|cm|mm|in|pt|pc|ch|rem|vh|vmin|vmax|\%")
+	g.token   ("UNIT",             "em|ex|px|cm|mm|in|pt|pc|ch|rem|vh|vmin|vmax|s|deg|rad|grad|ms|Hz|kHz|\%")
 	g.token   ("VARIABLE_NAME",    "[\w_][\w\d_]*")
 	g.token   ("METHOD_NAME",      "[\w_][\w\d_]*")
 	g.token   ("MACRO_NAME",       "[\w_][\w\d_]*")
@@ -122,7 +122,7 @@ def grammar(g=Grammar("PythonicCSS")):
 	g.group     ("Suffixes")
 	g.rule      ("Number",           s.NUMBER._as("value"), s.UNIT.optional()._as("unit"))
 	g.group     ("String",           s.STRING_UQ, s.STRING_SQ, s.STRING_DQ)
-	g.group     ("Value",            s.Number, s.COLOR_HEX, s.COLOR_RGB, s.REFERENCE, s.COLOR_NAME, s.String)
+	g.group     ("Value",            s.Number, s.COLOR_HEX, s.COLOR_RGB, s.REFERENCE, s.String)
 	g.rule      ("Parameters",       s.VARIABLE_NAME, g.arule(s.COMMA, s.VARIABLE_NAME).zeroOrMore())
 	g.rule      ("Arguments",        s.Value, g.arule(s.COMMA, s.Value).zeroOrMore())
 
@@ -205,6 +205,50 @@ class Processor:
 
 	RE_SPACES = re.compile("\s+")
 
+	COLOR_PROPERTIES = (
+		"background",
+		"background-color",
+		"color",
+		"gradient"
+		"linear-gradient"
+	)
+
+	PREFIXABLE_PROPERTIES = (
+		"animation",
+		"border-radius",
+		"box-shadow",
+		"background-size",
+		"column-width",
+		"column-gap",
+		"column-count",
+		"filter",
+		"transition-property",
+		"transition-duration",
+		"transition-timing-function",
+		"transform",
+		"transform-origin",
+		"transform-style",
+		"perspective",
+		"perspective-origin",
+		"box-sizing",
+		"backface-visibility",
+		"image-rendering",
+		"user-select",
+	)
+
+	PREFIXABLE_VALUES_PROPERTIES = (
+		"transition",
+		"transition-property",
+	)
+
+	PREFIXES = (
+		"-moz-",
+		"-webkit-",
+		"-o-",
+		"-ms-",
+		"",
+	)
+
 	# Defines the operations that are used in `Processor.evaluate`. These
 	# operation take (value, unit) for a and b, and unit is the default
 	# unit that will override the others.
@@ -216,6 +260,9 @@ class Processor:
 		"%" : lambda a,b,u:[a[0] % b[0], a[1] or b[1] or u],
 	}
 
+	@classmethod
+	def IsColorProperty( cls, name ):
+		return name in cls.COLOR_PROPERTIES
 
 	@classmethod
 	def ColorFromName( cls, name ):
@@ -236,7 +283,7 @@ class Processor:
 			cls.RGB = colors
 		name = name.lower().strip()
 		if name not in cls.RGB:
-			raise ProcessingException("Color not found: {0}".format(name))
+			None
 		else:
 			return cls.RGB[name.lower().strip()]
 
@@ -272,7 +319,7 @@ class Processor:
 	# EVALUATION
 	# ==========================================================================
 
-	def evaluate( self, e, unit=None, resolve=True ):
+	def evaluate( self, e, unit=None, name=None, resolve=True, prefix=None ):
 		"""Evaluates expressions with the internal expression format, which is
 		as follows:
 
@@ -283,13 +330,22 @@ class Processor:
 			v = e[1]
 			if resolve and v[1] == "R":
 				# We have a reference
-				return self.resolve(v[0])
+				return self.resolve(v[0], propertyName=name, prefix=prefix)
+			if self.IsColorProperty(name) and v[1] == "S":
+				# We have a color name as a string in a color property, we expand it
+				return (self.ColorFromName(v[0]) or v[0], "C")
+			elif v[1] == "S" and name in self.PREFIXABLE_VALUES_PROPERTIES:
+				# We're in a property that refernces prexialbe properties
+				if prefix and v[0] in self.PREFIXABLE_PROPERTIES:
+					return (prefix + v[0], v[1])
+				else:
+					return v
 			else:
 				return v
 		elif e[0] == "O":
 			o  = e[1]
-			lv = self.evaluate(e[2], unit)
-			rv = self.evaluate(e[3], unit)
+			lv = self.evaluate(e[2], unit, name=name, prefix=prefix)
+			rv = self.evaluate(e[3], unit, name=name, prefix=prefix)
 			lu = lv[1]
 			ru = rv[1]
 			lu = lu or ru or unit
@@ -307,25 +363,23 @@ class Processor:
 			r += "({0})".format(",".join((self._valueAsString(_) for _ in args or [])))
 			return (r, None)
 		else:
-			raise NotImplementedError
+			raise ProcessingException("Evaluate not implemented for: {0} in {1}".format(e, name))
 
-	def resolve( self, name ):
+	def resolve( self, name, propertyName=None, prefix=None ):
 		if name not in self.variables:
 			raise ProcessingException("Variable not defined: {0}".format(name))
 		else:
+			cname = name + (":" + propertyName if propertyName else "") + (":" + prefix if prefix else "")
 			if name in self._evaluated:
-				return self._evaluated[name]
+				return self._evaluated[cname]
 			else:
-				v = self.evaluate(self.variables[name])
-				self._evaluated[name] = v
+				v = self.evaluate(self.variables[cname], name=propertyName, prefix=prefix)
+				self._evaluated[cname] = v
 				return v
 
 	# ==========================================================================
 	# GRAMMAR RULES
 	# ==========================================================================
-
-	def onCOLOR_NAME(self, context, result ):
-		return [self.ColorFromName(result.group()), "C"]
 
 	def onCOLOR_HEX(self, context, result ):
 		c = (result.group(1))
@@ -468,14 +522,24 @@ class Processor:
 
 	def onAssignment( self, context, result, name, values ):
 		try:
-			values = [self._valueAsString(self.evaluate(_.data)) for _ in values]
+			evalues = [self._valueAsString(self.evaluate(_.data, name=name)) for _ in values]
 		except ProcessingException as e:
 			l, c = context.getCurrentCoordinates()
 			error("{0} at line {1}:".format(e, l))
 			error(">>> {0}".format(context.text[result[0].start:result[-1].end]))
 			e.context = context
 			raise e
-		return self._write("{0}: {1}; ".format(name, " ".join(values)), indent=1)
+		if name in self.PREFIXABLE_PROPERTIES:
+			res = []
+			for prefix in self.PREFIXES:
+				# It's a bit slower to re-evaluate here but it would otherwise
+				# lead to complex machinery.
+				evalues = [self._valueAsString(self.evaluate(_.data, name=name, prefix=prefix)) for _ in values]
+				l       = self._write("{2}{0}: {1}; ".format(name, " ".join(evalues), prefix), indent=1)
+				res.append(l)
+			return res
+		else:
+			return self._write("{0}: {1}; ".format(name, " ".join(evalues)), indent=1)
 
 	def onBlock( self, context, result, selector, code ):
 		if len(self.scopes) == 1:
@@ -566,8 +630,7 @@ class Processor:
 			# FIXME: Proper escaping
 			return "{0:s}".format(v,u)
 		else:
-			raise NotImplementedError
-
+			raise ProcessingException("Value string conversion not implemented: {0}".format(value))
 
 # -----------------------------------------------------------------------------
 #
