@@ -61,11 +61,12 @@ def grammar(g=Grammar("PythonicCSS")):
 	g.token   ("ATTRIBUTE",        "[a-zA-Z\-_][a-zA-Z0-9\-_]*")
 	g.token   ("ATTRIBUTE_VALUE",  "\"[^\"]*\"|'[^']*'|[^,\]]+")
 	g.token   ("SELECTOR_SUFFIX",  ":[\-a-z][a-z0-9\-]*(\([0-9]+\))?")
-	g.token   ("SELECTION_OPERATOR", "\>|\s+")
+	g.token   ("SELECTION_OPERATOR", "\>|[ ]+")
 	g.word    ("INCLUDE",             "%include")
 	g.word    ("COLON",            ":")
 	g.word    ("DOT",              ".")
 	g.word    ("LP",               "(")
+	g.word    ("IMPORTANT",        "!important")
 	g.word    ("RP",               ")")
 	g.word    ("SELF",             "&")
 	g.word    ("COMMA",            ",")
@@ -148,7 +149,7 @@ def grammar(g=Grammar("PythonicCSS")):
 	# OPERATIONS
 	# =========================================================================
 
-	g.rule      ("Assignment",       s.CSS_PROPERTY._as("name"), s.COLON, s.Expression.oneOrMore()._as("values"))
+	g.rule      ("Assignment",       s.CSS_PROPERTY._as("name"), s.COLON, s.Expression.oneOrMore()._as("values"), s.IMPORTANT.optional()._as("important"))
 	g.rule      ("MacroInvocation",  s.MACRO_NAME,   s.LP, s.Arguments.optional(), s.RP)
 
 	# =========================================================================
@@ -161,8 +162,8 @@ def grammar(g=Grammar("PythonicCSS")):
 	# the caching key.
 	# .processMemoizationKey(lambda _,c:_ + ":" + c.getVariables().get("requiredIndent", 0))
 	g.rule("Statement",     s.CheckIndent, g.agroup(s.Assignment, s.MacroInvocation, s.COMMENT), s.EOL).disableFailMemoize()
-	g.rule("Block",         s.CheckIndent, g.agroup(s.PERCENTAGE, s.SelectionList)._as("selector"), s.COLON, s.EOL, s.Indent, s.Code.zeroOrMore()._as("code"), s.Dedent).disableFailMemoize()
-	s.Code.set(s.Statement, s.Block).disableFailMemoize()
+	g.rule("Block",         s.CheckIndent, g.agroup(s.PERCENTAGE, s.SelectionList)._as("selector"), s.COLON.optional(), s.EOL, s.Indent, s.Code.zeroOrMore()._as("code"), s.Dedent).disableFailMemoize()
+	s.Code.set(s.Block, s.Statement).disableFailMemoize()
 
 	g.rule    ("SpecialDeclaration",   s.CheckIndent, s.SPECIAL_NAME, s.SPECIAL_FILTER.optional(), s.Parameters.optional(), s.COLON)
 	g.rule    ("SpecialBlock",         s.CheckIndent, s.SpecialDeclaration, s.EOL, s.Indent, s.Code.zeroOrMore(), s.Dedent).disableFailMemoize()
@@ -242,11 +243,11 @@ class Processor:
 	)
 
 	PREFIXES = (
+		"",
 		"-moz-",
 		"-webkit-",
 		"-o-",
 		"-ms-",
-		"",
 	)
 
 	# Defines the operations that are used in `Processor.evaluate`. These
@@ -370,10 +371,10 @@ class Processor:
 			raise ProcessingException("Variable not defined: {0}".format(name))
 		else:
 			cname = name + (":" + propertyName if propertyName else "") + (":" + prefix if prefix else "")
-			if name in self._evaluated:
+			if cname in self._evaluated:
 				return self._evaluated[cname]
 			else:
-				v = self.evaluate(self.variables[cname], name=propertyName, prefix=prefix)
+				v = self.evaluate(self.variables[name], name=propertyName, prefix=prefix)
 				self._evaluated[cname] = v
 				return v
 
@@ -507,7 +508,7 @@ class Processor:
 		if len(self.scopes) > 0: self._write("}")
 		# We push the expanded scopes in the scopes stack
 		self.scopes.append(scopes)
-		self._write(", ".join((self._selectionAsString(_) for _ in self.scopes[-1])) + " {")
+		self._write(",\n".join((self._selectionAsString(_) for _ in self.scopes[-1])) + " {")
 
 	def onNumber( self, context, result, value, unit ):
 		value = value.group()
@@ -520,7 +521,8 @@ class Processor:
 		self.variables[name] = value
 		return None
 
-	def onAssignment( self, context, result, name, values ):
+	def onAssignment( self, context, result, name, values, important ):
+		suffix = "!important" if important else ""
 		try:
 			evalues = [self._valueAsString(self.evaluate(_.data, name=name)) for _ in values]
 		except ProcessingException as e:
@@ -535,11 +537,11 @@ class Processor:
 				# It's a bit slower to re-evaluate here but it would otherwise
 				# lead to complex machinery.
 				evalues = [self._valueAsString(self.evaluate(_.data, name=name, prefix=prefix)) for _ in values]
-				l       = self._write("{2}{0}: {1}; ".format(name, " ".join(evalues), prefix), indent=1)
+				l       = self._write("{3}{0}: {1}{2};".format(name, " ".join(evalues), suffix, prefix), indent=1)
 				res.append(l)
 			return res
 		else:
-			return self._write("{0}: {1}; ".format(name, " ".join(evalues)), indent=1)
+			return self._write("{0}: {1}{2};".format(name, " ".join(evalues), suffix), indent=1)
 
 	def onBlock( self, context, result, selector, code ):
 		if len(self.scopes) == 1:
@@ -554,7 +556,7 @@ class Processor:
 	# ==========================================================================
 
 	def _write( self, line=None, indent=0 ):
-		line = "\t" * indent + line + "\n"
+		line = "  " * indent + line + "\n"
 		self.output.write(line)
 		return line
 
@@ -564,26 +566,34 @@ class Processor:
 
 	def _listCurrentScopes( self ):
 		"""Lists the current scopes"""
-		return self.scopes[-1]
+		return self.scopes[-1] if self.scopes else None
 
 	def _expandScopes( self, scopes ):
 		"""Expands the `&` in the list of given scopes."""
 		res = []
+		parent_scopes = self._listCurrentScopes()
 		for scope in scopes:
 			# If you have a look at onSelectionList, you'll see that the
 			# scope is a list of selectors joined by operators, ie:
 			# [ [NODE, ID, CLASS, ATTRIBUTES, SUFFIX], OP, [NODE...], ... ]
-			if scope[0][0] == "&":
-				# If there is an `&` in the scope, we list the
-				# curent scopes and merge the scope with them
-				scope[0][0] = ''
-				for full_scope in self._listCurrentScopes():
-					# This is a tricky operation, but we get the very first
-					# selector of the given scope, which starts with an &,
-					# merge it with the most specific part of the current
-					# scopes and prepend the rest of th full scope.
-					merged = self._mergeScopes(scope[0], full_scope[-1])
-					res.append(full_scope[0:-1] + [merged])
+			if parent_scopes:
+				if scope[0] is None:
+					for full_scope in parent_scopes:
+						res.append(full_scope + [" "] + scope[1:])
+				elif scope[0][0] == "&":
+					# If there is an `&` in the scope, we list the
+					# curent scopes and merge the scope with them
+					scope[0][0] = ''
+					for full_scope in parent_scopes:
+						# This is a tricky operation, but we get the very first
+						# selector of the given scope, which starts with an &,
+						# merge it with the most specific part of the current
+						# scopes and prepend the rest of th full scope.
+						merged = self._mergeScopes(scope[0], full_scope[-1])
+						res.append(full_scope[0:-1] + [merged])
+				else:
+					for full_scope in parent_scopes:
+						res.append(full_scope + [" "] + scope)
 			else:
 				res.append(scope)
 		return res
@@ -614,7 +624,7 @@ class Processor:
 				b = ("0" if b < 16 else "") + hex(b)[2:].upper()
 				return "#" + r + g + b
 			else:
-				return "rgba({0},{1},{2},{3})".format(*v)
+				return "rgba({0},{1},{2},{3:0.2f})".format(*v)
 		if   type(v) == int:
 			return "{0:d}{1}".format(v,u)
 		elif type(v) == float:
@@ -665,7 +675,7 @@ if __name__ == "__main__":
 	reporter.install()
 	# getGrammar().log.verbose = True
 	# getGrammar().log.level   = 10
-	getGrammar().log.enabled = True
+	# getGrammar().log.enabled = True
 	processor = Processor()
 	g         = processor.bind(getGrammar())
 	def log_failure( engine, context, rest ):
