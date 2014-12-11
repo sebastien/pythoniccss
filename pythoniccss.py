@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 from parsing import Grammar
-import reporter
+import re, reporter
 import ipdb
 
 G = None
@@ -81,8 +81,8 @@ def grammar(g=Grammar("PythonicCSS")):
 	g.token   ("MACRO_NAME",       "[\w_][\w\d_]*")
 	g.token   ("REFERENCE",        "\$[\w_][\w\d_]*")
 	g.token   ("COLOR_NAME",       "[a-z][a-z0-9\-]*")
-	g.token   ("COLOR_HEX",        "\#[A-Fa-f0-9][A-Fa-f0-9]?[A-Fa-f0-9]?[A-Fa-f0-9]?[A-Fa-f0-9]?[A-Fa-f0-9]?([A-Fa-f0-9][A-Fa-f0-9])?")
-	g.token   ("COLOR_RGB",        "rgba?\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*(,\s*\d+\s*)?\)")
+	g.token   ("COLOR_HEX",        "\#([A-Fa-f0-9][A-Fa-f0-9]?[A-Fa-f0-9]?[A-Fa-f0-9]?[A-Fa-f0-9]?[A-Fa-f0-9]?([A-Fa-f0-9][A-Fa-f0-9])?)")
+	g.token   ("COLOR_RGB",        "rgba?\((\s*\d+\s*,\s*\d+\s*,\s*\d+\s*(,\s*\d+(\.\d+)?\s*)?)\)")
 	g.token   ("CSS_PROPERTY",    "[a-z][a-z0-9\-]*")
 	g.token   ("SPECIAL_NAME",     "@[A-Za-z][A-Za-z0-9\_\-]*")
 	g.token   ("SPECIAL_FILTER",   "\[[^\]]+\]")
@@ -192,6 +192,7 @@ class ProcessingException(Exception):
 class Processor:
 	"""Replaces some of the grammar's symbols processing functions."""
 
+	RE_SPACES = re.compile("\s+")
 	# Defines the operations that are used in `Processor.evaluate`. These
 	# operation take (value, unit) for a and b, and unit is the default
 	# unit that will override the others.
@@ -202,6 +203,26 @@ class Processor:
 		"/" : lambda a,b,u:[a[0] / b[0], a[1] or b[1] or u],
 		"%" : lambda a,b,u:[a[0] % b[0], a[1] or b[1] or u],
 	}
+
+	RGB = None
+
+	@classmethod
+	def ColorFromName( cls, name ):
+		if not cls.RGB:
+			colors = {}
+			# We extract the color names from X11's rgb file
+			# SEE: https://en.wikipedia.org/wiki/X11_color_names#Color_name_chart
+			with open("/usr/share/X11/rgb.txt") as f:
+				for line in f.readlines():
+					if not line or line[0] == "!": continue
+					r = line[0:4]
+					g = line[4:8]
+					b = line[8:12]
+					r, g, b = (int(_.strip()) for _ in (r,g,b))
+					n = line[12:].lower().strip()
+					colors[n] = (r, g, b)
+			cls.RGB = colors
+		return cls.RGB[name.lower().strip()]
 
 	def __init__( self ):
 		self.reset()
@@ -270,13 +291,26 @@ class Processor:
 	# ==========================================================================
 
 	def onCOLOR_NAME(self, context, result ):
-		return (result.group())
+		return [self.ColorFromName(result.group()), "C"]
 
 	def onCOLOR_HEX(self, context, result ):
-		return (result.group())
+		c = (result.group(1))
+		while len(c) < 6: c += "0"
+		r = int(c[0:2], 16)
+		g = int(c[2:4], 16)
+		b = int(c[4:6], 16)
+		if len(c) > 6:
+			a = int(c[6:], 16) / 255.0
+			return [(r,g,b,a), "C"]
+		else:
+			return [(r,g,b), "C"]
 
 	def onCOLOR_RGB(self, context, result ):
-		return (result.group())
+		c = result.group(1).split(",")
+		if len(c) == 3:
+			return [[int(_) for _ in c], "C"]
+		else:
+			return [[int(_) for _ in c[:3] + [float(c[3])]], "C"]
 
 	def onCSS_PROPERTY(self, context, result ):
 		return result.group()
@@ -291,7 +325,7 @@ class Processor:
 		return result.group()
 
 	def onString( self, context, result ):
-		return (result.data, "STR")
+		return (result.data, "S")
 
 	def onValue( self, context, result ):
 		return ["V", result.data]
@@ -469,6 +503,15 @@ class Processor:
 
 	def _valueAsString( self, value ):
 		v, u = value ; u = u or ""
+		if   u == "C":
+			if len(v) == 3:
+				r, g, b = v
+				r = ("0" if r < 16 else "") + hex(r)[2:].upper()
+				g = ("0" if g < 16 else "") + hex(g)[2:].upper()
+				b = ("0" if b < 16 else "") + hex(b)[2:].upper()
+				return "#" + r + g + b
+			else:
+				return "rgba({0},{1},{2},{3})".format(*v)
 		if   type(v) == int:
 			return "{0:d}{1}".format(v,u)
 		elif type(v) == float:
