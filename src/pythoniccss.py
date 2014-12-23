@@ -17,7 +17,7 @@ try:
 except ImportError:
 	reporter = None
 
-__version__ = VERSION = "0.0.1"
+VERSION = "0.0.1"
 LICENSE = "http://ffctn.com/doc/licenses/bsd"
 __doc__ = """
 Processor for the PythonicCSS language. This module use a PEG-based parsing
