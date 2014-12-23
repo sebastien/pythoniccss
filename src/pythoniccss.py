@@ -1,18 +1,31 @@
 #!/usr/bin/env python
-from parsing import Grammar, Engine
-import re, reporter
-# import ipdb
+# encoding=utf8 ---------------------------------------------------------------
+# Project           : PythonicCSS
+# -----------------------------------------------------------------------------
+# Author            : FFunction
+# License           : BSD License
+# -----------------------------------------------------------------------------
+# Creation date     : 2013-JUL-15
+# Last modification : 2014-DEC-23
+# -----------------------------------------------------------------------------
 
-VERSION = "0.0.1"
-G       = None
-E       = None
-_, _, info, warning, error, fatal = reporter.bind("PythonicCSS")
+import re, sys
+from   libparsing import Grammar, Token, Word, Rule, Group, Condition, Procedure, Reference, AbstractProcessor
 
+try:
+	import reporter
+except ImportError:
+	reporter = None
+
+__version__ = VERSION = "0.0.1"
+LICENSE = "http://ffctn.com/doc/licenses/bsd"
 __doc__ = """
 Processor for the PythonicCSS language. This module use a PEG-based parsing
 engine <http://github.com/sebastien/parsing>, which sadly has an important
 performance penalty, but offers greated easy of development/update.
 """
+
+G = None
 
 # -----------------------------------------------------------------------------
 #
@@ -55,8 +68,6 @@ def grammar(g=Grammar("PythonicCSS")):
 	s = g.symbols
 	g.token   ("SPACE",            "[ ]+")
 	g.token   ("TABS",             "\t*")
-	g.token   ("EMPTY_LINES",      "([ \t]*\n)+")
-	g.token   ("INDENT",           "\t+")
 	g.token   ("COMMENT",          "[ \t]*\//[^\n]*")
 	g.token   ("EQUAL",             "=")
 	g.token   ("EOL",              "[ ]*\n(\s*\n)*")
@@ -73,7 +84,6 @@ def grammar(g=Grammar("PythonicCSS")):
 	g.word    ("RP",               ")")
 	g.word    ("SELF",             "&")
 	g.word    ("COMMA",            ",")
-	g.word    ("TAB",              "\t")
 	g.word    ("EQUAL",            "=")
 	g.word    ("LSBRACKET",        "[")
 	g.word    ("RSBRACKET",        "]")
@@ -91,7 +101,7 @@ def grammar(g=Grammar("PythonicCSS")):
 
 	# SEE: http://www.w3schools.com/cssref/css_units.asp
 	g.token   ("UNIT",             "em|ex|px|cm|mm|in|pt|pc|ch|rem|vh|vmin|vmax|s|deg|rad|grad|ms|Hz|kHz|\%")
-	g.token   ("VARIABLE_NAME",    "[\w_][\w\d_]*")
+	g.token   ("VARIABLE_NAME",    "[\w_Processor()][\w\d_]*")
 	g.token   ("METHOD_NAME",      "[\w_][\w\d_]*")
 	g.token   ("MACRO_NAME",       "[\w_][\w\d_]*")
 	g.token   ("REFERENCE",        "\$([\w_][\w\d_]*)")
@@ -108,7 +118,7 @@ def grammar(g=Grammar("PythonicCSS")):
 
 	g.procedure ("Indent",           doIndent)
 	g.procedure ("Dedent",           doDedent)
-	g.rule      ("CheckIndent",      s.TABS.bindAs("tabs"), g.acondition(doCheckIndent)).disableMemoize ()
+	g.rule      ("CheckIndent",      s.TABS._as("tabs"), g.acondition(doCheckIndent)).disableMemoize ()
 
 	g.rule      ("Attribute",        s.ATTRIBUTE._as("name"), g.arule(s.EQUAL, s.ATTRIBUTE_VALUE).optional()._as("value"))
 	g.rule      ("Attributes",       s.LSBRACKET, s.Attribute._as("head"), g.arule(s.COMMA, s.Attribute).zeroOrMore()._as("tail"), s.RSBRACKET)
@@ -164,8 +174,8 @@ def grammar(g=Grammar("PythonicCSS")):
 	# of the failures. A good idea would be to append the indentation value to
 	# the caching key.
 	# .processMemoizationKey(lambda _,c:_ + ":" + c.getVariables().get("requiredIndent", 0))
-	g.rule("Statement",     s.CheckIndent, g.agroup(s.Assignment, s.MacroInvocation, s.COMMENT), s.EOL).disableFailMemoize()
-	g.rule("Block",         s.CheckIndent, g.agroup(s.PERCENTAGE, s.SelectionList)._as("selector"), s.COLON.optional(), s.EOL, s.Indent, s.Code.zeroOrMore()._as("code"), s.Dedent).disableFailMemoize()
+	g.rule("Statement",     s.CheckIndent._as("indent"), g.agroup(s.Assignment, s.MacroInvocation, s.COMMENT), s.EOL).disableFailMemoize()
+	g.rule("Block",         s.CheckIndent._as("indent"), g.agroup(s.PERCENTAGE, s.SelectionList)._as("selector"), s.COLON.optional(), s.EOL, s.Indent, s.Code.zeroOrMore()._as("code"), s.Dedent).disableFailMemoize()
 	s.Code.set(s.Block, s.Statement).disableFailMemoize()
 
 	g.rule    ("SpecialDeclaration",   s.CheckIndent, s.SPECIAL_NAME, s.SPECIAL_FILTER.optional(), s.Parameters.optional(), s.COLON)
@@ -176,8 +186,8 @@ def grammar(g=Grammar("PythonicCSS")):
 	# =========================================================================
 
 	g.group     ("Source",  g.agroup(s.Comment, s.Block, s.SpecialBlock, s.Declaration, s.Include).zeroOrMore())
-	g.ignore    (s.SPACE)
-	g.axiom     = s.Source
+	g.skip(s.SPACE)
+	g.axiom(s.Source)
 	return g
 
 # -----------------------------------------------------------------------------
@@ -199,7 +209,7 @@ class ProcessingException(Exception):
 			msg = "Line {0}, char {1}: {2}".format(l, c, msg)
 		return msg
 
-class Processor:
+class Processor(AbstractProcessor):
 	"""Replaces some of the grammar's symbols processing functions. This is
 	the main code that converts the parsing's recognized data to the output
 	CSS. There is not really an intermediate AST (excepted for expressions),
@@ -291,10 +301,10 @@ class Processor:
 		else:
 			return cls.RGB[name.lower().strip()]
 
-	def __init__( self ):
+	def __init__( self, grammar=None, output=sys.stdout ):
+		AbstractProcessor.__init__(self, grammar or getGrammar())
 		self.reset()
-		self.s      = None
-		self.output = sys.stdout
+		self.output = output
 
 	def reset( self ):
 		"""Resets the state of the processor. To be called inbetween parses."""
@@ -303,21 +313,8 @@ class Processor:
 		self.variables  = {}
 		self._evaluated = {}
 		self.scopes     = []
-
-	def bind( self, g ):
-		"""Binds the processor to the given grammar. Should be called just one."""
-		self.s = s = g.symbols
-		for name in dir(s):
-			r = getattr(s, name)
-			n = "on" + name
-			m = hasattr(self, n)
-			if r and m:
-				method = getattr(self, n)
-				def wrapper(context, result, rule=r, method=method):
-					values = dict( (k, rule.resolveData(k, result)) for k in rule.listBoundSymbols() )
-					return method(context, result, **values)
-				r.action = wrapper
-		return g
+		self._header    = None
+		self._footer    = None
 
 	# ==========================================================================
 	# EVALUATION
@@ -385,8 +382,8 @@ class Processor:
 	# GRAMMAR RULES
 	# ==========================================================================
 
-	def onCOLOR_HEX(self, context, result ):
-		c = (result.group(1))
+	def onCOLOR_HEX(self, match ):
+		c = (match.group(1))
 		while len(c) < 6: c += "0"
 		r = int(c[0:2], 16)
 		g = int(c[2:4], 16)
@@ -397,62 +394,66 @@ class Processor:
 		else:
 			return [(r,g,b), "C"]
 
-	def onCOLOR_RGB(self, context, result ):
-		c = result.group(1).split(",")
+	def onCOLOR_RGB(self, match ):
+		c = match.group(1).split(",")
 		if len(c) == 3:
 			return [[int(_) for _ in c], "C"]
 		else:
 			return [[int(_) for _ in c[:3] + [float(c[3])]], "C"]
 
-	def onREFERENCE(self, context, result):
-		return (result.group(1), "R")
+	def onREFERENCE(self, match):
+		return (match.group(1), "R")
 
-	def onCSS_PROPERTY(self, context, result ):
-		return result.group()
+	def onCSS_PROPERTY(self, match ):
+		return match.group()
 
-	def onSTRING_DQ(self, context, result ):
-		return result.group(1)
+	def onSTRING_DQ(self, match ):
+		return match.group(1)
 
-	def onSTRING_SQ(self, context, result ):
-		return result.group(1)
+	def onSTRING_SQ(self, match ):
+		return match.group(1)
 
-	def onSTRING_UQ(self, context, result ):
-		return result.group()
+	def onSTRING_UQ(self, match ):
+		return match.group()
 
-	def onString( self, context, result ):
-		return (result.data, "S")
+	def onCheckIndent(self, match, tabs):
+		return len(tabs) if tabs else 0
 
-	def onValue( self, context, result ):
-		return ["V", result.data]
+	def onString( self, match ):
+		return (self.process(match.group()), "S")
 
-	def onParameters( self, context, result ):
-		return [result[0].data] + [_[1].data for _ in result[1].data]
+	def onValue( self, match ):
+		value = self.process(match.group())
+		return ["V", value]
 
-	def onArguments( self, context, result ):
-		return [self.evaluate(_) for _ in [result[0].data] + [_[1].data for _ in result[1].data]]
+	def onParameters( self, match ):
+		return [self.defaultProcess(match[0])] + [self.process(_[1]) for _ in self.process(match[1])]
 
-	def onInvocation( self, context, result, method, arguments ):
+	def onArguments( self, match ):
+		return [self.evaluate(_) for _ in [self.process(match[0])] + [self.process(_[1]) for _ in self.process(match[1])]]
+
+	def onInvocation( self, match, method, arguments ):
 		return ["I", None, method, arguments]
 
-	def onInfixOperation( self, context, result ):
-		op   = result[0].data
-		expr = result[1].data
-		return ["O", op.group(), None, expr]
+	def onInfixOperation( self, match ):
+		op   = self.process(match[0])
+		expr = self.process(match[1])
+		return ["O", op, None, expr]
 
-	def onSuffixes( self, context, result ):
-		return result.data
+	def onSuffixes( self, match ):
+		return self.process(match.group())
 
-	def onPrefix( self, context, result ):
-		if result.element == self.s.Value:
-			return result.data
-		else:
-			return result.data[1].data
+	def onPrefix( self, match ):
+		result = self.defaultProcess(match)
+		child = match[0]
+		# FIXME: Not sure about that
+		return self.process(child)
 
-	def onExpression( self, context, result ):
-		prefix   = result[0].data
-		suffixes = [_.data for _ in result[1].data]
+	def onExpression( self, match ):
+		prefix   = self.process(match[0])
+		suffixes = self.process(match[1])
 		res      = prefix
-		for suffix in suffixes:
+		for suffix in suffixes or []:
 			if suffix[0] == "O":
 				suffix[2] = res
 			elif suffix[0] == "I":
@@ -460,98 +461,115 @@ class Processor:
 			res = suffix
 		return res
 
-	def onAttribute( self, context, result, name, value ):
-		return "[{0}={1}]".format(name.group(), value[1].data.group())
+	def onAttribute( self, match, name, value ):
+		return "[{0}{1}{2}]".format(name, value[0], value[1])
 
-	def onAttributes( self, context, result, head, tail ):
-		tail = [_.data[1].data for _ in tail]
-		return "".join([head] + tail)
+	def onAttributes( self, match, head, tail ):
+		assert not tail
+		result = "".join([head] + (tail or []))
+		return  result
 
-	def onSelector( self, context, result, scope, nid,  nclass, attributes, suffix ):
+	def onSelector( self, match, scope, nid,  nclass, attributes, suffix ):
 		"""Selectors are returned as tuples `(scope, id, class, attributes, suffix)`.
 		We need to keep this structure as we need to be able to expand the `&`
 		reference."""
-		scope  = context.text[scope] if type(scope) == int else scope  and scope.group()  or ""
-		nid    = nid    and nid.group()    or ""
-		suffix = "".join([_.data.group() for _ in suffix]) or ""
-		nclass = "".join([_.data.group() for _ in nclass]) if isinstance(nclass, list) else nclass and nclass.group() or ""
+		scope  = scope[0] if scope else ""
+		nid    = nid if nid else ""
+		suffix = "".join(suffix) if suffix else ""
+		nclass = "".join(nclass) if nclass else ""
 		if (scope or nid or nclass or attributes or suffix):
 			return [scope, nid, nclass, attributes or "", suffix]
 		else:
 			return None
 
-	def onSelectorNarrower( self, context, result, op, sel ):
+	def onSelectorNarrower( self, match, op, sel ):
 		"""Returns a `(op, selector)` couple."""
-		op = op and (op.group().strip() + " ") or ""
+		op = op and (op.strip() + " ") or ""
 		return (op, sel) if op or sel else None
 
-	def onSelection( self, context, result, head, tail ):
+	def onSelection( self, match, head, tail ):
 		"""Returns a structure like the following:
 		>   [[('div', '', '', '', ''), '> ', ('label', '', '', '', '')]]
 		>   ---SELECTOR------------   OP   --SELECTOR---------------
 		"""
-		res = [head]
-		for _ in tail or []:
-			if type(_) in (str, unicode, list, tuple):
-				res.append(_)
-			else:
-				res.extend(_.data)
-		return res
+		if head:
+			res = head
+			if tail:
+				for narrower in tail:
+					res.extend(narrower)
+			return res
+		else:
+			res = []
+			for i, v in enumerate(tail):
+				if i == 0:
+					res.append(v[1])
+				else:
+					res.extend(v)
+			return res
 
-	def onSelectionList( self, context, result, head, tail ):
+	def onSelectionList( self, match, head, tail ):
 		"""Updates the current scope and writes the scope selection line."""
-		# head is s.Selection
-		head   = [head]
 		# tail is [[s.COMMA, s.Selection], ...]
-		tail   = [_.data[1].data for _ in tail or []]
-		scopes = head + tail
+		tail   = [_[1] for _ in tail or [] if _[1]]
+		scopes = [head] + tail if tail else [head]
+		# print "onSelectionList: head=", head
+		# print "onSelectionList: tail=", tail
+		# print "onSelectionList: scopes=", scopes
 		# We want to epxand the `&` in the scopes
 		scopes = self._expandScopes(scopes)
-		# And output the full current scope
-		if len(self.scopes) > 0: self._write("}")
 		# We push the expanded scopes in the scopes stack
 		self.scopes.append(scopes)
-		self._write(",\n".join((self._selectionAsString(_) for _ in self.scopes[-1])) + " {")
+		self._header = ",\n".join((self._selectionAsString(_) for _ in self.scopes[-1])) + " {"
+		return self._header
 
-	def onNumber( self, context, result, value, unit ):
-		value = value.group()
+	def onNumber( self, match, value, unit ):
 		value = float(value) if "." in value else int(value)
-		unit  = unit.group() if unit else None
+		unit  = unit if unit else None
 		return (value, unit)
 
-	def onDeclaration( self, context, result, name, value ):
-		name = name.group()
+	def onDeclaration( self, match, name, value ):
+		name = name
 		self.variables[name] = value
 		return None
 
-	def onAssignment( self, context, result, name, values, important ):
+	def onAssignment( self, match, name, values, important ):
+		if self._header:
+			self._write(self._header)
+			self._header = None
+			self._footer = "}\n"
 		suffix = "!important" if important else ""
 		try:
-			evalues = [self._valueAsString(self.evaluate(_.data, name=name)) for _ in values]
+			evalues = [self._valueAsString(self.evaluate(_, name=name)) for _ in values]
 		except ProcessingException as e:
-			l, c = context.getCurrentCoordinates()
-			error("{0} at line {1}:".format(e, l))
-			error(">>> {0}".format(context.text[result[0].start:result[-1].end]))
-			e.context = context
+			error("{0} at  offset {1}:".format(e, match.range()))
 			raise e
 		if name in self.PREFIXABLE_PROPERTIES:
 			res = []
 			for prefix in self.PREFIXES:
+				# FIXME: Optimize this
 				# It's a bit slower to re-evaluate here but it would otherwise
 				# lead to complex machinery.
-				evalues = [self._valueAsString(self.evaluate(_.data, name=name, prefix=prefix)) for _ in values]
+				evalues = [self._valueAsString(self.evaluate(_, name=name, prefix=prefix)) for _ in values]
 				l       = self._write("{3}{0}: {1}{2};".format(name, " ".join(evalues), suffix, prefix), indent=1)
 				res.append(l)
 			return res
 		else:
 			return self._write("{0}: {1}{2};".format(name, " ".join(evalues), suffix), indent=1)
 
-	def onBlock( self, context, result, selector, code ):
-		if len(self.scopes) == 1:
-			self._write("}")
-		self.scopes.pop()
+	def onBlock( self, match, indent ):
+		if self._footer:
+			self._write(self._footer)
+			self._footer = None
+		while len(self.scopes) > indent:
+			self.scopes.pop()
+		self.process(match["selector"])
+		self.process(match["code"])
 
-	def onSource( self, context, result ):
+	def onSource( self, match ):
+		result = self.defaultProcess(match)
+		if self._footer:
+			self._write(self._footer)
+			self._footer = None
 		return result
 
 	# ==========================================================================
@@ -615,7 +633,7 @@ class Processor:
 		return "".join(_ or "" for _ in scope)
 
 	def _selectionAsString( self, selection ):
-		return "".join(self._scopeAsString(_) if isinstance(_, list) else _ for _ in selection if _)
+		return "".join(self._scopeAsString(_) if isinstance(_, list) else _ for _ in selection if _) if selection else ""
 
 	def _valueAsString( self, value ):
 		v, u = value ; u = u or ""
@@ -656,38 +674,22 @@ def getGrammar():
 	if not G: G = grammar ()
 	return G
 
-def getEngine():
-	global E
-	if not E: E = Engine(getGrammar())
-	return E
-
 def parse(path):
-	# Parse should return the node tree
-	with open(path, "rb") as f:
-		return getGrammar().parse(f.read(), getEngine())
+	return getGrammar().parsePath(path)
 
-def compile(path, treebuilderClass):
-	# FIXME: Compile should return the text
-	builder = treebuilderClass(path)
-	grammar = getGrammar()
-	return builder.build(parse(path), grammar)
-
-if __name__ == "__main__":
-	import sys, os
-	args = sys.argv[1:]
-	reporter.install()
-	# getGrammar().log.verbose = True
-	# getGrammar().log.level   = 10
-	# getGrammar().log.enabled = True
-	processor = Processor()
-	g         = processor.bind(getGrammar())
-	def log_failure( engine, context, rest ):
-		l, c = context.getCurrentCoordinates()
-		head, tail = engine.getErrorContext(context)
-		error("Parsing failed at line {0}, char {1} with {2} chars left:\n{3}[ERROR]{4}".format(l,c,len(rest),head,tail))
-	getEngine().onFailureAxiom = log_failure
-	getEngine().onFailureRest  = log_failure
-	for path in args:
-		parse(path)
+def run(args):
+	"""Processes the command line arguments."""
+	if reporter: reporter.install(reporter.StderrReporter())
+	if type(args) not in (type([]), type(())): args = [args]
+	from optparse import OptionParser
+	# We create the parse and register the options
+	oparser = OptionParser(prog="pythoniccss", description=DESCRIPTION,
+	usage=USAGE, version="PythonicCSS " + __version__)
+	options, args = oparser.parse_args(args=args)
+	p = Processor(output=sys.stdout)
+	for a in args:
+		if reporter: reporter.info("Processing: {0}".format(a))
+		match = parse(a)
+		p.process()
 
 # EOF

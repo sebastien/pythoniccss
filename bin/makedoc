@@ -1,0 +1,57 @@
+#!/usr/bin/env python
+import texto, templating
+import os, sys
+from os.path import dirname, join, abspath
+BASE = dirname(dirname(abspath(__file__)))
+
+sys.path.insert(0, join(BASE, "src"))
+
+doc  = []
+text = open(join(BASE,"tests/test-complete.pcss")).read()
+mode = None
+
+for line in text.split("\n")[:-1]:
+	line = line.decode("utf8")
+	if "// EOF" in line:
+		pass
+	elif line.strip().startswith("//"):
+		if mode != "T": doc.append("\n")
+		doc.append(line.strip()[2:].strip())
+		mode = "T"
+	elif line.strip():
+		if mode != "C": doc.append("\n")
+		doc.append(u">\t " + line)
+		mode = "C"
+
+FFLIB = os.path.expanduser("~/Workspace/FF-Experiments/build")
+assert os.path.exists(FFLIB)
+CSS  = ("lib/css/base.css", "lib/css/texto.css")
+JS   = ("lib/js/jquery-2.1.1.js", "lib/js/extend-2.6.5.js", "lib/js/html-5.0.3.js", "lib/js/texto.js")
+css  = "\n".join(file(os.path.join(FFLIB, _)).read() for _ in CSS)
+js   = "\n".join(file(os.path.join(FFLIB, _)).read() for _ in JS)
+HTML_PAGE = """
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="utf-8" />
+		<title>PythonicCSS &mdash; Manual</title>
+		<style>${css}</style>
+		<script>${js}</script>
+	<body>
+		<div class="API use-texto use-base">
+			<div class="documentation" style="margin-left:250px;">
+				<div class="document">
+				${body}
+				</div>
+			</div>
+		</div>
+	</body>
+</html>
+"""
+result = templating.Template(HTML_PAGE).apply(dict(
+	css    = css,
+	js     = js,
+	body   = texto.toHTML("\n".join(doc)),
+))
+open("README.html", "w").write(result)
+# EOF
