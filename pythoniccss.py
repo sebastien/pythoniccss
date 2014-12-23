@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 from parsing import Grammar, Engine
 import re, reporter
-import ipdb
+# import ipdb
 
 VERSION = "0.0.1"
 G       = None
