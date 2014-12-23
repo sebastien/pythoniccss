@@ -17,7 +17,7 @@ try:
 except ImportError:
 	reporter = None
 
-VERSION = "0.0.2"
+VERSION = "0.0.3"
 LICENSE = "http://ffctn.com/doc/licenses/bsd"
 __doc__ = """
 Processor for the PythonicCSS language. This module use a PEG-based parsing
@@ -679,6 +679,7 @@ def parse(path):
 
 def run(args):
 	"""Processes the command line arguments."""
+	USAGE = "pythoniccss FILE..."
 	if reporter: reporter.install(reporter.StderrReporter())
 	if type(args) not in (type([]), type(())): args = [args]
 	from optparse import OptionParser
