@@ -10,7 +10,7 @@ PRODUCT     = MANIFEST
 all: $(PRODUCT)
 
 release: $(PRODUCT)
-	git commit -a -m "Release $(VERSION)"
+	git commit -a -m "Release $(VERSION)" ; true
 	git tag $(VERSION) ; true
 	git push --all ; true
 	python setup.py clean sdist register upload
