@@ -17,7 +17,7 @@ try:
 except ImportError:
 	reporter = None
 
-VERSION = "0.0.1"
+VERSION = "0.0.2"
 LICENSE = "http://ffctn.com/doc/licenses/bsd"
 __doc__ = """
 Processor for the PythonicCSS language. This module use a PEG-based parsing
@@ -683,7 +683,7 @@ def run(args):
 	if type(args) not in (type([]), type(())): args = [args]
 	from optparse import OptionParser
 	# We create the parse and register the options
-	oparser = OptionParser(prog="pythoniccss", description=DESCRIPTION,
+	oparser = OptionParser(prog="pythoniccss", description=__doc__,
 	usage=USAGE, version="PythonicCSS " + __version__)
 	options, args = oparser.parse_args(args=args)
 	p = Processor(output=sys.stdout)
