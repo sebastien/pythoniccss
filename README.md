@@ -6,6 +6,7 @@
 ```
 Version: 0.0.1
 Updated: 2014-12-08
+URL:     http://github.com/sebastien/pythoniccss
 ```
 
 PythonicCSS is a pre-compiler that outputs CSS. It was originally intended
