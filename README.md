@@ -1,0 +1,250 @@
+
+
+
+#  PythonicCSS
+
+```
+Version: 0.0.1
+Updated: 2014-12-08
+```
+
+PythonicCSS is a pre-compiler that outputs CSS. It was originally intended
+to be CleverCSS 2.0, but as it does not have a fully compatible syntax it
+did not make sense to keep the same name.
+
+PythonicCSS has the following features:
+
+- Indentation-based structure
+- Automatic prefixing
+- Full CSS3 support (animation, media queries, calc, etc)
+- Modularity (includes) and mixins
+
+Syntax Overview
+===============
+
+PythonicCSS's syntax is based on indentation, just like in Python. The main
+difference is that PythonicCSS is stricter and always expects the right amount
+of indentation and the use of tabs (not spaces) to do so.
+
+Here's an example of what PythonicCSS looks like (this example is actually
+the same from CleverCSS's documentation).
+
+
+```
+ul#comments, ol#comments:
+	margin: 0
+	padding: 0
+	li:
+		padding: 0.4em
+		margin: 0.8em 0 0.8em
+	h3:
+	  font-size: 1.2em
+	p:
+	  padding: 0.3em
+	p.meta:
+	  text-align: right
+	  color: #ddd
+```
+
+Selectors & Rules
+=================
+
+You can use any CSS-like selector in you rules. You can use `,` to separate
+the selectors on a single line and `&` to refer to the parent selector in
+a nested rule.
+
+```
+A = 10
+div:
+	color:      #FF00FF
+	content:    "asdasdd"
+	background: #FFAAAAAA.brighten() 
+	width:      10em * 1.0 + ($A * 10 / 2)
+	animation:  name 5s
+div, span:
+	font-size: 100%
+div:
+	&:first-child:
+		color: red
+	&:last-child:
+		color: green
+	&:nth-child(2):
+		color: yellow
+.Application:
+	&.with-base:
+		background: 200%
+#Application:
+	font-size: 100%
+div[data-type=1.0]:
+	font-size: 100%
+*[data-type=1.0]:hover:
+	font-size: 100%
+div#Application.widget.application[data-type=Application]:hover:
+	font-size: 100%
+```
+
+Some rules will also be automatically prefixed, for instance:
+
+```
+-placeholder:
+```
+
+will generate:
+
+`-moz-placeholder, -webkit-placeholder`
+
+
+Properties & Expressions
+========================
+
+Property values can be expressed relatively to defined variables and also
+using computations. You can pre-calculate expressions before CSS rendering
+by using PCSS's expressions, or defer the evaluation with CSS3's calc function.
+The following will output 35em
+
+```
+width: 10em * 3.5
+```
+
+While the following will output `calc(10em * 3.5)`. Note that we need
+to pass the expression as a string parameter, as otherwise the the expression
+will be evaluted by PCSS.
+
+```
+width: calc("10em * 3.5")
+```
+
+PCSS allows for implicit concatenation, as shown in the example below
+
+```
+label1:
+	padding: $foo + 2 + 3 $foo - 2
+label2:
+	padding: ($foo + 2 + 3) ($foo - 2)
+```
+
+Automatic Prefixing
+===================
+
+PCSS know about which properties and litteral property values to
+prefix. For instance, in the following example
+`transition-property`, `transform` and `filter` will be generated
+with their corresponding vendor prefixes.
+
+```
+transition-property: color transform filter
+```
+
+Some properties, such as gradients can have different syntaxes, depending
+on the browser. If CSS3 does not already have a recommendation, WebKit's
+format will be chosen.
+
+```
+background: linear-gradient(to bottom, #1e5799 0%, #2989d8 50%, #207cca 51%, #7db9e8 100%)
+```
+
+will generated the following CSS code (thanks http://www.colorzilla.com/gradient-editor/)
+
+```css
+background: #1e5799;
+background: -moz-linear-gradient(top,  #1e5799 0%, #2989d8 50%, #207cca 51%, #7db9e8 100%);
+background: -webkit-linear-gradient(top,  #1e5799 0%,#2989d8 50%,#207cca 51%,#7db9e8 100%);
+background: -o-linear-gradient(top,  #1e5799 0%,#2989d8 50%,#207cca 51%,#7db9e8 100%);
+background: -ms-linear-gradient(top,  #1e5799 0%,#2989d8 50%,#207cca 51%,#7db9e8 100%);
+background: linear-gradient(to bottom,  #1e5799 0%,#2989d8 50%,#207cca 51%,#7db9e8 100%);
+filter: progid:DXImageTransform.Microsoft.gradient( startColorstr='#1e5799', endColorstr='#7db9e8',GradientType=0 );
+```
+
+Includes
+========
+
+The `PATH` will be resolved relatively to the current file, and if not found
+will be resolved relatively to the current working directory.
+
+```
+%include test-include.pcss
+```
+
+Variables
+=========
+
+Variables are declared at the beginning of the file, and can have any type of
+expression. Note that variables are not evaluated until referenced.
+
+Variables are expected to be `UPPER_CASE`.
+
+```
+FONT_SIZE            = 14
+PX                   = 1em / $FONT_SIZE
+PAD                  = 20 * $PX
+BACKGROUND_COLOR     = white
+BACKGROUND_COLOR_ALT = #F0F0F0
+```
+
+Macros
+======
+
+Macros allow to define common properties that can be applied all at once using
+by calling the macro with `<NAME>()`
+
+```
+@macro cleared:
+	clear:   bothAA
+	content: ""
+	display: block
+	height:  0em
+div.cleared:
+	cleared()
+```
+
+CSS3 support
+============
+
+Animations
+----------
+
+CSS animations can be defined just like in CSS3, using `from/to` or percentages
+to define the frames. You can use property groups and macros just like in any
+other PCSS block.
+Keyframes with from/to
+
+```
+@keyframes animation1:
+	from:
+		background: red
+	to:
+		background: yellow
+```
+
+Keyframes with %
+
+```
+@keyframes animation2:
+	0%:
+		background: red
+	100%:
+		background: yellow
+```
+
+Font-Face
+---------
+
+```
+@font-face:
+	font-family: asdas
+```
+
+Media queries
+-------------
+
+```
+@media[screen and (max-width: 300px)]:
+	body:
+		background-color: lightblue
+```
+
+Import
+-------
+
+```
+@import url("import4.css") tv, print;

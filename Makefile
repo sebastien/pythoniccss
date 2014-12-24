@@ -27,8 +27,12 @@ check:
 API.html: $(DOC_SOURCES)
 	sdoc --markup=texto src/pythoniccss.py API.html
 
+doc: README.html
+
 README.html:  tests/test-complete.pcss bin/makedoc
 	python bin/makedoc
+
+	
 
 test:
 	python tests/all.py

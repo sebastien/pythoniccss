@@ -6,7 +6,7 @@
 # License           : BSD License
 # -----------------------------------------------------------------------------
 # Creation date     : 2013-JUL-15
-# Last modification : 2014-DEC-23
+# Last modification : 2014-DEC-24
 # -----------------------------------------------------------------------------
 
 import re, sys
@@ -17,7 +17,7 @@ try:
 except ImportError:
 	reporter = None
 
-VERSION = "0.0.4"
+VERSION = "0.0.5"
 LICENSE = "http://ffctn.com/doc/licenses/bsd"
 __doc__ = """
 Processor for the PythonicCSS language. This module use a PEG-based parsing
@@ -95,9 +95,9 @@ def grammar(g=Grammar("PythonicCSS")):
 	g.token   ("STRING_UQ",        "[^\s\n\*\;]+")
 	g.token   ("INFIX_OPERATOR",   "[\-\+\*\/]")
 
-	g.token   ("NODE",             "\*|([a-zA-Z][a-zA-Z0-9\-]*)")
-	g.token   ("NODE_CLASS",       "\.[a-zA-Z][a-zA-Z0-9\-]*")
-	g.token   ("NODE_ID",          "#[a-zA-Z][a-zA-Z0-9\-]*")
+	g.token   ("NODE",             "\*|([a-zA-Z][\-_a-zA-Z0-9\-]*)")
+	g.token   ("NODE_CLASS",       "\.[_a-zA-Z][_a-zA-Z0-9_\-]*")
+	g.token   ("NODE_ID",          "#[_a-zA-Z][_a-zA-Z0-9\-]*")
 
 	# SEE: http://www.w3schools.com/cssref/css_units.asp
 	g.token   ("UNIT",             "em|ex|px|cm|mm|in|pt|pc|ch|rem|vh|vmin|vmax|s|deg|rad|grad|ms|Hz|kHz|\%")
@@ -533,6 +533,8 @@ class Processor(AbstractProcessor):
 		return None
 
 	def onAssignment( self, match, name, values, important ):
+		import ipdb
+		ipdb.set_trace()
 		if self._header:
 			self._write(self._header)
 			self._header = None
@@ -695,4 +697,7 @@ def run(args):
 		match = parse(a)
 		p.process(match)
 
+if __name__ == "__main__":
+	import sys
+	run(sys.argv[1:])
 # EOF

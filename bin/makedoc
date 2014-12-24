@@ -7,7 +7,7 @@ BASE = dirname(dirname(abspath(__file__)))
 sys.path.insert(0, join(BASE, "src"))
 
 doc  = []
-text = open(join(BASE,"tests/test-complete.pcss")).read()
+text = open(join(BASE,"tests/test-complete.pcss")).read().decode("utf-8")
 mode = None
 
 for line in text.split("\n")[:-1]:
@@ -15,12 +15,13 @@ for line in text.split("\n")[:-1]:
 	if "// EOF" in line:
 		pass
 	elif line.strip().startswith("//"):
-		if mode != "T": doc.append("\n")
+		if   mode == "C": doc.append("```\n")
+		elif mode != "T": doc.append("\n")
 		doc.append(line.strip()[2:].strip())
 		mode = "T"
 	elif line.strip():
-		if mode != "C": doc.append("\n")
-		doc.append(u">\t " + line)
+		if mode != "C": doc.append("\n```")
+		doc.append(u"" + line)
 		mode = "C"
 
 FFLIB = os.path.expanduser("~/Workspace/FF-Experiments/build")
@@ -48,10 +49,14 @@ HTML_PAGE = """
 	</body>
 </html>
 """
+
+body = u"\n".join(doc).decode("utf-8")
+file("README.md","w").write(body)
+body = os.popen("pandoc --section-divs README.md").read()
 result = templating.Template(HTML_PAGE).apply(dict(
 	css    = css,
 	js     = js,
-	body   = texto.toHTML("\n".join(doc)),
+	body   = body,
 ))
-open("README.html", "w").write(result)
-# EOF
+file("README.html", "w").write(result.decode("utf-8"))
+# EOF - vim: noet ts=4 sw=4
