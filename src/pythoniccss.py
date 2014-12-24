@@ -61,10 +61,10 @@ def doDedent(context):
 #
 # -----------------------------------------------------------------------------
 
-def grammar(g=Grammar("PythonicCSS")):
+def grammar(g=None):
 	"""Definition of the grammar for the PythonicCSS language, using
 	the parsing module parsing elements."""
-
+	if not g:g=Grammar("PythonicCSS", verbose=False)
 	s = g.symbols
 	g.token   ("SPACE",            "[ ]+")
 	g.token   ("TABS",             "\t*")
@@ -92,7 +92,7 @@ def grammar(g=Grammar("PythonicCSS")):
 	g.token   ("PERCENTAGE",       "\d+(\.\d+)?%")
 	g.token   ("STRING_SQ",        "'((\\\\'|[^'\\n])*)'")
 	g.token   ("STRING_DQ",        "\"((\\\\\"|[^\"\\n])*)\"")
-	g.token   ("STRING_UQ",        "[^\s\n\*\;]+")
+	g.token   ("STRING_UQ",        "[^\s\n\*\\-\+;\(\)\[\]]+")
 	g.token   ("INFIX_OPERATOR",   "[\-\+\*\/]")
 
 	g.token   ("NODE",             "\*|([a-zA-Z][\-_a-zA-Z0-9\-]*)")
@@ -146,7 +146,7 @@ def grammar(g=Grammar("PythonicCSS")):
 	g.group     ("Prefix", s.Value, g.arule(s.LP, s.Expression, s.RP))
 	s.Expression.set(s.Prefix, s.Suffixes.zeroOrMore())
 
-	g.rule      ("Invocation",   g.agroup(s.DOT,     s.METHOD_NAME).optional()._as("method"), s.LP, s.Arguments.optional()._as("arguments"), s.RP)
+	g.rule      ("Invocation",   g.arule(s.DOT,     s.METHOD_NAME).optional()._as("method"), s.LP, s.Arguments.optional()._as("arguments"), s.RP)
 	g.rule      ("InfixOperation", s.INFIX_OPERATOR, s.Expression)
 	s.Suffixes.set(s.InfixOperation, s.Invocation)
 
@@ -359,8 +359,9 @@ class Processor(AbstractProcessor):
 		elif e[0] == "I":
 			_, scope, method, args = e
 			r = ""
-			if scope:  r += scope[1]
+			if scope:  r += self._valueAsString(scope[1])
 			if method: r += "." + method
+			# TODO: Should detect the scope type and apply the corresponding method
 			r += "({0})".format(",".join((self._valueAsString(_) for _ in args or [])))
 			return (r, None)
 		else:
@@ -393,6 +394,9 @@ class Processor(AbstractProcessor):
 			return [(r,g,b,a), "C"]
 		else:
 			return [(r,g,b), "C"]
+
+	def onMETHOD_NAME(self, match ):
+		return match.group()
 
 	def onCOLOR_RGB(self, match ):
 		c = match.group(1).split(",")
@@ -433,7 +437,7 @@ class Processor(AbstractProcessor):
 		return [self.evaluate(_) for _ in [self.process(match[0])] + [self.process(_[1]) for _ in self.process(match[1])]]
 
 	def onInvocation( self, match, method, arguments ):
-		return ["I", None, method, arguments]
+		return ["I", None, method[1], arguments]
 
 	def onInfixOperation( self, match ):
 		op   = self.process(match[0])
@@ -445,9 +449,11 @@ class Processor(AbstractProcessor):
 
 	def onPrefix( self, match ):
 		result = self.defaultProcess(match)
-		child = match[0]
-		# FIXME: Not sure about that
-		return self.process(child)
+		child          = match[0]
+		grand_children = child.children()
+		result         = self.process(child)
+		result         = result[1] if len(result) == 3 else result
+		return result
 
 	def onExpression( self, match ):
 		prefix   = self.process(match[0])
@@ -533,8 +539,6 @@ class Processor(AbstractProcessor):
 		return None
 
 	def onAssignment( self, match, name, values, important ):
-		import ipdb
-		ipdb.set_trace()
 		if self._header:
 			self._write(self._header)
 			self._header = None
@@ -543,7 +547,8 @@ class Processor(AbstractProcessor):
 		try:
 			evalues = [self._valueAsString(self.evaluate(_, name=name)) for _ in values]
 		except ProcessingException as e:
-			error("{0} at  offset {1}:".format(e, match.range()))
+			if reporter:
+				reporter.error("{0} at  offset {1}:".format(e, match.range()))
 			raise e
 		if name in self.PREFIXABLE_PROPERTIES:
 			res = []
@@ -673,7 +678,8 @@ class Processor(AbstractProcessor):
 
 def getGrammar():
 	global G
-	if not G: G = grammar ()
+	if not G: G = grammar()
+	# G.setVerbose(False)
 	return G
 
 def parse(path):
