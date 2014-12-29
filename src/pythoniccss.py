@@ -10,7 +10,7 @@
 # -----------------------------------------------------------------------------
 
 import re, sys
-from   libparsing import Grammar, Token, Word, Rule, Group, Condition, Procedure, Reference, AbstractProcessor
+from   libparsing import Grammar, Token, Word, Rule, Group, Condition, Procedure, Reference, AbstractProcessor, TreeWriter
 
 try:
 	import reporter
@@ -171,17 +171,15 @@ def grammar(g=None):
 	# BLOCK STRUCTURE
 	# =========================================================================
 
-	g.group("Code")
 	# NOTE: If would be good to sort this out and allow memoization for some
 	# of the failures. A good idea would be to append the indentation value to
 	# the caching key.
 	# .processMemoizationKey(lambda _,c:_ + ":" + c.getVariables().get("requiredIndent", 0))
 	g.rule("Statement",     s.CheckIndent._as("indent"), g.agroup(s.Assignment, s.MacroInvocation, s.COMMENT), s.EOL).disableFailMemoize()
-	g.rule("Block",         s.CheckIndent._as("indent"), g.agroup(s.PERCENTAGE, s.SelectionList)._as("selector"), s.COLON.optional(), s.EOL, s.Indent, s.Code.zeroOrMore()._as("code"), s.Dedent).disableFailMemoize()
-	s.Code.set(s.Block, s.Statement).disableFailMemoize()
+	g.rule("Block",         s.CheckIndent._as("indent"), g.agroup(s.PERCENTAGE, s.SelectionList)._as("selector"), s.COLON.optional(), s.EOL, s.Indent, s.Statement.zeroOrMore()._as("code"), s.Dedent).disableFailMemoize()
 
 	g.rule    ("SpecialDeclaration",   s.CheckIndent, s.SPECIAL_NAME, s.SPECIAL_FILTER.optional(), s.Parameters.optional(), s.COLON)
-	g.rule    ("SpecialBlock",         s.CheckIndent, s.SpecialDeclaration, s.EOL, s.Indent, s.Code.zeroOrMore(), s.Dedent).disableFailMemoize()
+	g.rule    ("SpecialBlock",         s.CheckIndent, s.SpecialDeclaration, s.EOL, s.Indent, s.Statement.zeroOrMore(), s.Dedent).disableFailMemoize()
 
 	# =========================================================================
 	# AXIOM
@@ -708,6 +706,7 @@ def run(args):
 	usage=USAGE, version="PythonicCSS " + VERSION)
 	options, args = oparser.parse_args(args=args)
 	p = Processor(output=sys.stdout)
+	# p = TreeWriter(output=sys.stdout)
 	if not args:
 		sys.stderr.write(USAGE + "\n")
 	for a in args:
