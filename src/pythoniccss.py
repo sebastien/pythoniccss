@@ -5,8 +5,8 @@
 # Author            : FFunction
 # License           : BSD License
 # -----------------------------------------------------------------------------
-# Creation date     : 2013-JUL-15
-# Last modification : 2014-DEC-24
+# Creation date     : 14-Jul-2013
+# Last modification : 29-Dec-2014
 # -----------------------------------------------------------------------------
 
 import re, sys
@@ -17,8 +17,9 @@ try:
 except ImportError:
 	reporter = None
 
-VERSION = "0.0.5"
+VERSION = "0.0.6"
 LICENSE = "http://ffctn.com/doc/licenses/bsd"
+
 __doc__ = """
 Processor for the PythonicCSS language. This module use a PEG-based parsing
 engine <http://github.com/sebastien/parsing>, which sadly has an important
@@ -75,7 +76,7 @@ def grammar(g=None):
 	g.token   ("ATTRIBUTE",        "[a-zA-Z\-_][a-zA-Z0-9\-_]*")
 	g.token   ("ATTRIBUTE_VALUE",  "\"[^\"]*\"|'[^']*'|[^,\]]+")
 	g.token   ("SELECTOR_SUFFIX",  ":[\-a-z][a-z0-9\-]*(\([0-9]+\))?")
-	g.token   ("SELECTION_OPERATOR", "\>|[ ]+")
+	g.token   ("SELECTION_OPERATOR", "\>|\+|[ ]+")
 	g.word    ("INCLUDE",             "%include")
 	g.word    ("COLON",            ":")
 	g.word    ("DOT",              ".")
@@ -84,6 +85,7 @@ def grammar(g=None):
 	g.word    ("RP",               ")")
 	g.word    ("SELF",             "&")
 	g.word    ("COMMA",            ",")
+	g.word    ("SEMICOLON",        ";")
 	g.word    ("EQUAL",            "=")
 	g.word    ("LSBRACKET",        "[")
 	g.word    ("RSBRACKET",        "]")
@@ -91,8 +93,8 @@ def grammar(g=None):
 	g.token   ("PATH",             "\"[^\"]+\"|'[^']'|[^\s\n]+")
 	g.token   ("PERCENTAGE",       "\d+(\.\d+)?%")
 	g.token   ("STRING_SQ",        "'((\\\\'|[^'\\n])*)'")
-	g.token   ("STRING_DQ",        "\"((\\\\\"|[^\"\\n])*)\"")
-	g.token   ("STRING_UQ",        "[^\s\n\*\\-\+;\(\)\[\]]+")
+	g.token   ("STRING_DQ",        "\"((\\\\\"|[^\"\n])*)\"")
+	g.token   ("STRING_UQ",        "[^\s\n\*\+;\(\)\[\]]+")
 	g.token   ("INFIX_OPERATOR",   "[\-\+\*\/]")
 
 	g.token   ("NODE",             "\*|([a-zA-Z][\-_a-zA-Z0-9\-]*)")
@@ -108,7 +110,7 @@ def grammar(g=None):
 	g.token   ("COLOR_NAME",       "[a-z][a-z0-9\-]*")
 	g.token   ("COLOR_HEX",        "\#([A-Fa-f0-9][A-Fa-f0-9]?[A-Fa-f0-9]?[A-Fa-f0-9]?[A-Fa-f0-9]?[A-Fa-f0-9]?([A-Fa-f0-9][A-Fa-f0-9])?)")
 	g.token   ("COLOR_RGB",        "rgba?\((\s*\d+\s*,\s*\d+\s*,\s*\d+\s*(,\s*\d+(\.\d+)?\s*)?)\)")
-	g.token   ("CSS_PROPERTY",    "[a-z][a-z0-9\-]*")
+	g.token   ("CSS_PROPERTY",    "[\-a-z][\-a-z0-9]*")
 	g.token   ("SPECIAL_NAME",     "@[A-Za-z][A-Za-z0-9\_\-]*")
 	g.token   ("SPECIAL_FILTER",   "\[[^\]]+\]")
 
@@ -135,7 +137,7 @@ def grammar(g=None):
 
 	g.group     ("Suffixes")
 	g.rule      ("Number",           s.NUMBER._as("value"), s.UNIT.optional()._as("unit"))
-	g.group     ("String",           s.STRING_UQ, s.STRING_SQ, s.STRING_DQ)
+	g.group     ("String",           s.STRING_SQ, s.STRING_DQ, s.STRING_UQ)
 	g.group     ("Value",            s.Number, s.COLOR_HEX, s.COLOR_RGB, s.REFERENCE, s.String)
 	g.rule      ("Parameters",       s.VARIABLE_NAME, g.arule(s.COMMA, s.VARIABLE_NAME).zeroOrMore())
 	g.rule      ("Arguments",        s.Value, g.arule(s.COMMA, s.Value).zeroOrMore())
@@ -162,7 +164,7 @@ def grammar(g=None):
 	# OPERATIONS
 	# =========================================================================
 
-	g.rule      ("Assignment",       s.CSS_PROPERTY._as("name"), s.COLON, s.Expression.oneOrMore()._as("values"), s.IMPORTANT.optional()._as("important"))
+	g.rule      ("Assignment",       s.CSS_PROPERTY._as("name"), s.COLON, s.Expression.oneOrMore()._as("values"), s.IMPORTANT.optional()._as("important"), s.SEMICOLON.optional())
 	g.rule      ("MacroInvocation",  s.MACRO_NAME,   s.LP, s.Arguments.optional(), s.RP)
 
 	# =========================================================================
@@ -351,6 +353,7 @@ class Processor(AbstractProcessor):
 			ru = rv[1]
 			lu = lu or ru or unit
 			ru = ru or lu or unit
+			print ("OPERATION", lu, ru, "IN", e)
 			if lu != ru:
 				raise ProcessingException("Incompatible unit types {0} vs {1}".format(lu, ru))
 			else:
@@ -434,10 +437,13 @@ class Processor(AbstractProcessor):
 		return [self.defaultProcess(match[0])] + [self.process(_[1]) for _ in self.process(match[1])]
 
 	def onArguments( self, match ):
-		return [self.evaluate(_) for _ in [self.process(match[0])] + [self.process(_[1]) for _ in self.process(match[1])]]
+		m0 = self.process(match[0])
+		m1 = self.process(match[1])
+		p = [m0] + [_[1] for _ in m1] if m1 else []
+		return [self.evaluate(_) for _ in p]
 
 	def onInvocation( self, match, method, arguments ):
-		return ["I", None, method[1], arguments]
+		return ["I", None, method and method[1] or None, arguments]
 
 	def onInfixOperation( self, match ):
 		op   = self.process(match[0])
@@ -468,7 +474,8 @@ class Processor(AbstractProcessor):
 		return res
 
 	def onAttribute( self, match, name, value ):
-		return "[{0}{1}{2}]".format(name, value[0], value[1])
+		print "ATTRIBUTE", match, name, value
+		return "[{0}{1}{2}]".format(name, value[0] if value else "", value[1] if value else "")
 
 	def onAttributes( self, match, head, tail ):
 		assert not tail
@@ -645,14 +652,19 @@ class Processor(AbstractProcessor):
 	def _valueAsString( self, value ):
 		v, u = value ; u = u or ""
 		if   u == "C":
-			if len(v) == 3:
+			if type(v) in (str, unicode):
+				# If we have a string instead of a tuple, we pass it as-is
+				return v
+			elif len(v) == 3:
 				r, g, b = v
 				r = ("0" if r < 16 else "") + hex(r)[2:].upper()
 				g = ("0" if g < 16 else "") + hex(g)[2:].upper()
 				b = ("0" if b < 16 else "") + hex(b)[2:].upper()
 				return "#" + r + g + b
-			else:
+			elif len(v) == 4:
 				return "rgba({0},{1},{2},{3:0.2f})".format(*v)
+			else:
+				raise ProcessingException("Expected RGB triple, RGBA quadruple or string, got: {0} in {1}".format(v, value))
 		if   type(v) == int:
 			return "{0:d}{1}".format(v,u)
 		elif type(v) == float:
@@ -701,7 +713,13 @@ def run(args):
 	for a in args:
 		if reporter: reporter.info("Processing: {0}".format(a))
 		match = parse(a)
-		p.process(match)
+		if match.status() == "S":
+			p.process(match)
+		else:
+			msg = "Parsing of {0} failed at line:{1}".format(a, match.line())
+			reporter.error(msg)
+			reporter.error(match.textaround())
+			raise Exception("Parsing of {0} failed at line:{1}\n> {2}".format(a, match.line(), match.textaround()))
 
 if __name__ == "__main__":
 	import sys
