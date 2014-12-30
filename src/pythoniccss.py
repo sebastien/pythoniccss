@@ -9,7 +9,7 @@
 # Last modification : 30-Dec-2014
 # -----------------------------------------------------------------------------
 
-import re, os, sys, argparse
+import re, os, sys, argparse, json
 from   libparsing import Grammar, Token, Word, Rule, Group, Condition, Procedure, Reference, AbstractProcessor, TreeWriter
 
 try:
@@ -218,7 +218,7 @@ class Processor(AbstractProcessor):
 	RGB        = None
 
 	RE_SPACES            = re.compile("\s+")
-	RE_UNQUOTED          = re.compile("[\w\d_-]+")
+	RE_UNQUOTED          = re.compile("\!?[\./\w\d_-]+")
 	FIX_STRING_DELIMITER = "\\\"\\\""
 	COLOR_PROPERTIES     = (
 		"background",
@@ -714,13 +714,13 @@ class Processor(AbstractProcessor):
 			if self.RE_UNQUOTED.match(v):
 				return "{0:s}".format(v,u)
 			else:
-				return "{0:s}".format(repr(v),u)
+				return "{0:s}".format(json.dumps(v),u)
 		elif type(v) == unicode:
 			# FIXME: Proper escaping
 			if self.RE_UNQUOTED.match(v):
 				return "{0:s}".format(v,u)
 			else:
-				return "{0:s}".format(repr(v),u)
+				return "{0:s}".format(json.dumps(v),u)
 		else:
 			raise ProcessingException("Value string conversion not implemented: {0}".format(value))
 
