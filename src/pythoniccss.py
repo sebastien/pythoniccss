@@ -269,9 +269,17 @@ class Processor(AbstractProcessor):
 	OPERATIONS = {
 		"+" : lambda a,b,u:[a[0] + b[0], a[1] or b[1] or u],
 		"-" : lambda a,b,u:[a[0] - b[0], a[1] or b[1] or u],
-		"*" : lambda a,b,u:[a[0] * b[0], a[1] or b[1] or u],
-		"/" : lambda a,b,u:[a[0] / b[0], a[1] or b[1] or u],
+		"*" : lambda a,b,u:[float(a[0]) * b[0], a[1] or b[1] or u],
+		"/" : lambda a,b,u:[float(a[0]) / b[0], a[1] or b[1] or u],
 		"%" : lambda a,b,u:[a[0] % b[0], a[1] or b[1] or u],
+	}
+
+	OPERATOR_PRIORITY = {
+		"+" : 0,
+		"-" : 0,
+		"*" : 1,
+		"/" : 1,
+		"%" : 1,
 	}
 
 	@classmethod
@@ -462,12 +470,27 @@ class Processor(AbstractProcessor):
 		prefix   = self.process(match[0])
 		suffixes = self.process(match[1])
 		res      = prefix
+		# NOTE: We might need to re-evaluate the expression itself
+		# ex: ['O', '*', None, ['O', '+', ['V', (10, None)], ['V', (5, None)]]]
+		# In that case we'll need to swap the
 		for suffix in suffixes or []:
 			if suffix[0] == "O":
 				suffix[2] = res
 			elif suffix[0] == "I":
 				suffix[1] = res
 			res = suffix
+		if res[0] == "O" and res[3][0] == "O":
+			# We're in this situation
+			# ['O', '*', ['V', (4, None)], ['O', '+', ['V', (10, None)], ['V', (5, None)]]]
+			# while we ant
+			# ['O', '+', ['O', '*', ['V', (4, None)], ['V', (10, None)]], ['V', (5, None)]]]
+			op  = res[1]
+			rop = res[3][1]
+			if self.OPERATOR_PRIORITY[rop] < self.OPERATOR_PRIORITY[op]:
+				a = res[2]
+				b = res[3][2]
+				c = res[3][3]
+				res = ["O", rop, ["O", op, a, b], c]
 		return res
 
 	def onAttribute( self, match, name, value ):
@@ -493,7 +516,8 @@ class Processor(AbstractProcessor):
 
 	def onSelectorNarrower( self, match, op, sel ):
 		"""Returns a `(op, selector)` couple."""
-		op = op and (op.strip() + " ") or ""
+		if op:
+			op = op.strip() or " "
 		return (op, sel) if op or sel else None
 
 	def onSelection( self, match, head, tail ):
@@ -501,17 +525,22 @@ class Processor(AbstractProcessor):
 		>   [[('div', '', '', '', ''), '> ', ('label', '', '', '', '')]]
 		>   ---SELECTOR------------   OP   --SELECTOR---------------
 		"""
+		if not head and not tail: return None
 		if head:
 			res = head
 			if tail:
 				for narrower in tail:
+					if not narrower: continue
 					res.extend(narrower)
 			return res
 		else:
 			res = []
 			for i, v in enumerate(tail):
 				if i == 0:
-					res.append(v[1])
+					if v[0] == " ":
+						res.append(v[1])
+					else:
+						res.extend(v)
 				else:
 					res.extend(v)
 			return res
@@ -619,9 +648,9 @@ class Processor(AbstractProcessor):
 						# This is a tricky operation, but we get the very first
 						# selector of the given scope, which starts with an &,
 						# merge it with the most specific part of the current
-						# scopes and prepend the rest of th full scope.
-						merged = self._mergeScopes(scope[0], full_scope[-1])
-						res.append(full_scope[0:-1] + [merged])
+						# scopes and prepend the rest of th fulle scope.
+						merged = [self._mergeScopes(scope[0], full_scope[-1])] + scope[1:]
+						res.append(full_scope[0:-1] + merged)
 				else:
 					for full_scope in parent_scopes:
 						res.append(full_scope + [" "] + scope)
@@ -633,7 +662,7 @@ class Processor(AbstractProcessor):
 		"""Helper function for _mergeScopes"""
 		if not a: return b
 		if not b: return a
-		return a + b
+		return b + a
 
 	def _mergeScopes( self, a, b):
 		# Merges the contents of scope A and B
@@ -668,6 +697,7 @@ class Processor(AbstractProcessor):
 			v = "{0:f}".format(v)
 			while len(v) > 2 and v[-1] == "0" and v[-2] != ".":
 				v = v[0:-1]
+			if v.endswith(".0"):v = v[:-2]
 			return v + u
 		elif type(v) == str:
 			# FIXME: Proper escaping
