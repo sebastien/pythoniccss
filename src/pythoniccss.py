@@ -75,9 +75,9 @@ def grammar(g=None):
 	g.token   ("NUMBER",           "-?(0x)?[0-9]+(\.[0-9]+)?")
 	g.token   ("ATTRIBUTE",        "[a-zA-Z\-_][a-zA-Z0-9\-_]*")
 	g.token   ("ATTRIBUTE_VALUE",  "\"[^\"]*\"|'[^']*'|[^,\]]+")
-	g.token   ("SELECTOR_SUFFIX",  ":[\-a-z][a-z0-9\-]*(\([0-9]+\))?")
+	g.token   ("SELECTOR_SUFFIX",  "::?[\-a-z][a-z0-9\-]*(\([^\)]+\))?")
 	g.token   ("SELECTION_OPERATOR", "\>|\+|[ ]+")
-	g.word    ("INCLUDE",             "%include")
+	g.word    ("INCLUDE",          "%include")
 	g.word    ("COLON",            ":")
 	g.word    ("DOT",              ".")
 	g.word    ("LP",               "(")
@@ -351,7 +351,6 @@ class Processor(AbstractProcessor):
 			ru = rv[1]
 			lu = lu or ru or unit
 			ru = ru or lu or unit
-			print ("OPERATION", lu, ru, "IN", e)
 			if lu != ru:
 				raise ProcessingException("Incompatible unit types {0} vs {1}".format(lu, ru))
 			else:
@@ -472,7 +471,6 @@ class Processor(AbstractProcessor):
 		return res
 
 	def onAttribute( self, match, name, value ):
-		print "ATTRIBUTE", match, name, value
 		return "[{0}{1}{2}]".format(name, value[0] if value else "", value[1] if value else "")
 
 	def onAttributes( self, match, head, tail ):
