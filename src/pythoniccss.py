@@ -125,7 +125,7 @@ def grammar(g=None):
 	g.rule      ("Attribute",        s.ATTRIBUTE._as("name"), g.arule(s.EQUAL, s.ATTRIBUTE_VALUE).optional()._as("value"))
 	g.rule      ("Attributes",       s.LSBRACKET, s.Attribute._as("head"), g.arule(s.COMMA, s.Attribute).zeroOrMore()._as("tail"), s.RSBRACKET)
 
-	g.rule      ("Selector",         g.agroup(s.SELF, s.NODE).optional()._as("scope"), s.NODE_ID.optional()._as("nid"), s.NODE_CLASS.zeroOrMore()._as("nclass"), s.Attributes.optional()._as("attributes"), s.SELECTOR_SUFFIX.zeroOrMore()._as("suffix"))
+	g.rule      ("Selector",         g.agroup(s.SELF, s.NODE).optional()._as("scope"), s.NODE_ID.optional()._as("nid"), s.NODE_CLASS.zeroOrMore()._as("nclass"), s.Attributes.zeroOrMore()._as("attributes"), s.SELECTOR_SUFFIX.zeroOrMore()._as("suffix"))
 	g.rule      ("SelectorNarrower", s.SELECTION_OPERATOR._as("op"), s.Selector._as("sel"))
 
 	g.rule      ("Selection",        g.agroup(s.Selector)._as("head"), s.SelectorNarrower.zeroOrMore()._as("tail"))
@@ -217,9 +217,10 @@ class Processor(AbstractProcessor):
 
 	RGB        = None
 
-	RE_SPACES = re.compile("\s+")
-
-	COLOR_PROPERTIES = (
+	RE_SPACES            = re.compile("\s+")
+	RE_UNQUOTED          = re.compile("[\w\d_-]+")
+	FIX_STRING_DELIMITER = "\\\"\\\""
+	COLOR_PROPERTIES     = (
 		"background",
 		"background-color",
 		"color",
@@ -343,9 +344,9 @@ class Processor(AbstractProcessor):
 			if self.IsColorProperty(name) and v[1] == "S":
 				# We have a color name as a string in a color property, we expand it
 				return (self.ColorFromName(v[0]) or v[0], "C")
-			elif v[1] == "S" and name in self.PREFIXABLE_VALUES_PROPERTIES:
-				# We're in a property that refernces prexialbe properties
-				if prefix and v[0] in self.PREFIXABLE_PROPERTIES:
+			elif v[1] == "S":
+				if name in self.PREFIXABLE_VALUES_PROPERTIES and prefix and v[0] in self.PREFIXABLE_PROPERTIES:
+					# We're in a property that refernces prexialbe properties
 					return (prefix + v[0], v[1])
 				else:
 					return v
@@ -372,6 +373,8 @@ class Processor(AbstractProcessor):
 			# TODO: Should detect the scope type and apply the corresponding method
 			r += "({0})".format(",".join((self._valueAsString(_) for _ in args or [])))
 			return (r, None)
+		elif e[0] == "(":
+			return self.evaluate(e[1])
 		else:
 			raise ProcessingException("Evaluate not implemented for: {0} in {1}".format(e, name))
 
@@ -420,10 +423,10 @@ class Processor(AbstractProcessor):
 		return match.group()
 
 	def onSTRING_DQ(self, match ):
-		return match.group(1)
+		return self._stringEscapeFix(match.group(1))
 
 	def onSTRING_SQ(self, match ):
-		return match.group(1)
+		return self._stringEscapeFix(match.group(1))
 
 	def onSTRING_UQ(self, match ):
 		return match.group()
@@ -444,7 +447,7 @@ class Processor(AbstractProcessor):
 	def onArguments( self, match ):
 		m0 = self.process(match[0])
 		m1 = self.process(match[1])
-		p = [m0] + [_[1] for _ in m1] if m1 else []
+		p = [m0] + ([_[1] for _ in m1] if m1 else [])
 		return [self.evaluate(_) for _ in p]
 
 	def onInvocation( self, match, method, arguments ):
@@ -463,22 +466,20 @@ class Processor(AbstractProcessor):
 		child          = match[0]
 		grand_children = child.children()
 		result         = self.process(child)
-		result         = result[1] if len(result) == 3 else result
+		result         = ["(", result[1]] if len(result) == 3 else result
 		return result
 
 	def onExpression( self, match ):
 		prefix   = self.process(match[0])
 		suffixes = self.process(match[1])
 		res      = prefix
-		# NOTE: We might need to re-evaluate the expression itself
-		# ex: ['O', '*', None, ['O', '+', ['V', (10, None)], ['V', (5, None)]]]
-		# In that case we'll need to swap the
 		for suffix in suffixes or []:
 			if suffix[0] == "O":
 				suffix[2] = res
 			elif suffix[0] == "I":
 				suffix[1] = res
 			res = suffix
+		# We rework operator precedence here
 		if res[0] == "O" and res[3][0] == "O":
 			# We're in this situation
 			# ['O', '*', ['V', (4, None)], ['O', '+', ['V', (10, None)], ['V', (5, None)]]]
@@ -505,10 +506,11 @@ class Processor(AbstractProcessor):
 		"""Selectors are returned as tuples `(scope, id, class, attributes, suffix)`.
 		We need to keep this structure as we need to be able to expand the `&`
 		reference."""
-		scope  = scope[0] if scope else ""
-		nid    = nid if nid else ""
-		suffix = "".join(suffix) if suffix else ""
-		nclass = "".join(nclass) if nclass else ""
+		scope      = scope[0] if scope else ""
+		nid        = nid if nid else ""
+		suffix     = "".join(suffix) if suffix else ""
+		nclass     = "".join(nclass) if nclass else ""
+		attributes = "".join(attributes) if attributes else ""
 		if (scope or nid or nclass or attributes or suffix):
 			return [scope, nid, nclass, attributes or "", suffix]
 		else:
@@ -674,6 +676,14 @@ class Processor(AbstractProcessor):
 	def _selectionAsString( self, selection ):
 		return "".join(self._scopeAsString(_) if isinstance(_, list) else _ for _ in selection if _) if selection else ""
 
+	def _stringEscapeFix( self, text ):
+		# NOTE: CleverCSS had some trouble with the empty content string, which
+		# lead us to write content: "\"\"/\"\"". This escapes that
+		if text.startswith(self.FIX_STRING_DELIMITER) and text.endswith(self.FIX_STRING_DELIMITER):
+			return text[len(self.FIX_STRING_DELIMITER):-len(self.FIX_STRING_DELIMITER)]
+		else:
+			return text
+
 	def _valueAsString( self, value ):
 		v, u = value ; u = u or ""
 		if   u == "C":
@@ -694,17 +704,23 @@ class Processor(AbstractProcessor):
 			return "{0:d}{1}".format(v,u)
 		elif type(v) == float:
 			# We remove the trailing 0 to have the most compact representation
-			v = "{0:f}".format(v)
+			v = str(v)
 			while len(v) > 2 and v[-1] == "0" and v[-2] != ".":
 				v = v[0:-1]
 			if v.endswith(".0"):v = v[:-2]
 			return v + u
 		elif type(v) == str:
 			# FIXME: Proper escaping
-			return "{0:s}".format(v,u)
+			if self.RE_UNQUOTED.match(v):
+				return "{0:s}".format(v,u)
+			else:
+				return "{0:s}".format(repr(v),u)
 		elif type(v) == unicode:
 			# FIXME: Proper escaping
-			return "{0:s}".format(v,u)
+			if self.RE_UNQUOTED.match(v):
+				return "{0:s}".format(v,u)
+			else:
+				return "{0:s}".format(repr(v),u)
 		else:
 			raise ProcessingException("Value string conversion not implemented: {0}".format(value))
 

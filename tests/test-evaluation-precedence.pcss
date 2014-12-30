@@ -1,4 +1,24 @@
-.Navigation:
-	height: 5 + 4 * 10
-	height: 4 * 10 + 5
-	height: 4 + 4 * 10 + 5
+BASE_FONT             = 14
+PX                    = 1em / $BASE_FONT
+PAD                   = 10   * $PX
+
+// .Navigation:
+// 	height: 5 + 4 * 10
+// 	height: 4 * 10 + 5
+// 	height: 4 + 4 * 10 + 5
+
+.network[data-network="twitter"]:
+	// Expected: -2.8
+	left: -1*(3*$PAD + $PAD)
+.network[data-network="facebook"]:
+	// Expected: -5.7
+	left: -2*(3*$PAD + $PAD)
+.network[data-network="linkedin"]:
+	// Expected: -8.57
+	left: -3*(3*$PAD + $PAD)
+.network[data-network="pinterest"]:
+	// Expected: -11.42
+	left: -4*(3*$PAD + $PAD)
+.network[data-network="googleplus"]:
+	// Expected: -14.28
+	left: -5*(3*$PAD + $PAD)
