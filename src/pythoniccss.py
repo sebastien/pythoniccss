@@ -17,7 +17,7 @@ try:
 except ImportError:
 	reporter = None
 
-VERSION = "0.0.7"
+VERSION = "0.0.8"
 LICENSE = "http://ffctn.com/doc/licenses/bsd"
 
 __doc__ = """
