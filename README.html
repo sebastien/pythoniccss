@@ -98,10 +98,15 @@ div#Application.widget.application[data-type=Application]:hover:
 </div>
 <div id="properties-expressions" class="section level1">
 <h1>Properties &amp; Expressions</h1>
-<p>Property values can be expressed relatively to defined variables and also using computations. You can pre-calculate expressions before CSS rendering by using PCSS's expressions, or defer the evaluation with CSS3's calc function. The following will output 35em</p>
+<p>PCSS allows to evaluate expressions at compile time before generating the resulting CSS code. For instance</p>
 <pre><code>width: 10em * 3.5</code></pre>
+<p>will result in</p>
+<pre><code>width: 35em;</code></pre>
+<p>Property values can be expressed relatively to defined variables and also using computations. You can pre-calculate expressions before CSS rendering by using PCSS's expressions, or defer the evaluation with CSS3's <code>calc</code> function.</p>
 <p>While the following will output <code>calc(10em * 3.5)</code>. Note that we need to pass the expression as a string parameter, as otherwise the the expression will be evaluted by PCSS.</p>
 <pre><code>width: calc(&quot;10em * 3.5&quot;)</code></pre>
+<p>Alternatively, you can also quote the whole value, which will just pass the string as-is.</p>
+<pre><code>width: &quot;calc(10em * 3.5)&quot;</code></pre>
 <p>PCSS allows for implicit concatenation, as shown in the example below</p>
 <pre><code>label1:
     padding: $foo + 2 + 3 $foo - 2
@@ -179,8 +184,19 @@ div.cleared:
 </div>
 <div id="import" class="section level2">
 <h2>Import</h2>
-<p>``` <span class="citation">@import</span> url(&quot;import4.css&quot;) tv, print;</p>
+<pre><code>@import url(&quot;import4.css&quot;) tv, print;</code></pre>
 </div>
+</div>
+<div id="notable-differences-with-clevercss" class="section level1">
+<h1>Notable differences with CleverCSS</h1>
+<p>Variables have to be defined with valid expressions::</p>
+<p><code>FONT_FAMILY = Helvetica, Arial, sans-serif</code></p>
+<p>Will not work, instead, you'll have to quote the whole text</p>
+<p>`FONT_FAMILY = &quot;Helvetica, Arial, sans-serif&quot;</p>
+<p>Rule trailing colon is optional::</p>
+<pre><code>div
+color: black</code></pre>
+<p>Is a valid PCSS code</p>
 </div>
 
 				</div>

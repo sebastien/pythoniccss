@@ -98,14 +98,25 @@ will generate:
 Properties & Expressions
 ========================
 
-Property values can be expressed relatively to defined variables and also
-using computations. You can pre-calculate expressions before CSS rendering
-by using PCSS's expressions, or defer the evaluation with CSS3's calc function.
-The following will output 35em
+PCSS allows to evaluate expressions at compile time before generating the
+resulting CSS code. For instance
+
 
 ```
 width: 10em * 3.5
 ```
+
+
+will result in
+
+```
+width: 35em;
+```
+
+Property values can be expressed relatively to defined variables and also
+using computations. You can pre-calculate expressions before CSS rendering
+by using PCSS's expressions, or defer the evaluation with CSS3's `calc` function.
+
 
 While the following will output `calc(10em * 3.5)`. Note that we need
 to pass the expression as a string parameter, as otherwise the the expression
@@ -113,6 +124,13 @@ will be evaluted by PCSS.
 
 ```
 width: calc("10em * 3.5")
+```
+
+Alternatively, you can also quote the whole value, which will just pass
+the string as-is.
+
+```
+width: "calc(10em * 3.5)"
 ```
 
 PCSS allows for implicit concatenation, as shown in the example below
@@ -249,3 +267,24 @@ Import
 
 ```
 @import url("import4.css") tv, print;
+```
+
+Notable differences with CleverCSS
+==================================
+
+Variables have to be defined with valid expressions::
+
+`FONT_FAMILY = Helvetica, Arial, sans-serif`
+
+Will not work, instead, you'll have to quote the whole text
+
+`FONT_FAMILY = "Helvetica, Arial, sans-serif"
+
+Rule trailing colon is optional::
+
+```
+div
+color: black
+```
+
+Is a valid PCSS code

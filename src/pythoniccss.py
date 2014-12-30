@@ -6,10 +6,10 @@
 # License           : BSD License
 # -----------------------------------------------------------------------------
 # Creation date     : 14-Jul-2013
-# Last modification : 29-Dec-2014
+# Last modification : 30-Dec-2014
 # -----------------------------------------------------------------------------
 
-import re, sys
+import re, os, sys, argparse
 from   libparsing import Grammar, Token, Word, Rule, Group, Condition, Procedure, Reference, AbstractProcessor, TreeWriter
 
 try:
@@ -17,7 +17,7 @@ try:
 except ImportError:
 	reporter = None
 
-VERSION = "0.0.6"
+VERSION = "0.0.7"
 LICENSE = "http://ffctn.com/doc/licenses/bsd"
 
 __doc__ = """
@@ -700,26 +700,38 @@ def run(args):
 	USAGE = "pythoniccss FILE..."
 	if reporter: reporter.install(reporter.StderrReporter())
 	if type(args) not in (type([]), type(())): args = [args]
-	from optparse import OptionParser
+	oparser = argparse.ArgumentParser(
+		prog        = os.path.basename(__file__.split(".")[0]),
+		description = "Compiles PythonicCSS files to CSS"
+	)
+	oparser.add_argument("files", metavar="FILE", type=str, nargs='+', help='The .pcss files to parse')
+	oparser.add_argument("--report",  dest="report",  action="store_true", default=False)
+	oparser.add_argument("--output",  type=str,  dest="output", default=None)
 	# We create the parse and register the options
-	oparser = OptionParser(prog="pythoniccss", description=__doc__,
-	usage=USAGE, version="PythonicCSS " + VERSION)
-	options, args = oparser.parse_args(args=args)
-	p = Processor(output=sys.stdout)
+	args = oparser.parse_args(args=args)
+	p   = Processor(output=sys.stdout)
 	# p = TreeWriter(output=sys.stdout)
-	if not args:
+	if not args.files:
 		sys.stderr.write(USAGE + "\n")
-	for a in args:
+	output = sys.stdout
+	if args.output: output = open(args.output, "w")
+	for a in args.files:
 		if reporter: reporter.info("Processing: {0}".format(a))
 		match = parse(a)
-		if match.status() == "S":
-			p.process(match)
+		if args.report:
+			output.write("Report for : {0}\n".format(a))
+			stats = match.stats()
+			stats.report(getGrammar(), output)
 		else:
-			msg = "Parsing of {0} failed at line:{1}".format(a, match.line())
-			reporter.error(msg)
-			reporter.error(match.textaround())
-			raise Exception("Parsing of {0} failed at line:{1}\n> {2}".format(a, match.line(), match.textaround()))
-
+			if match.status() == "S":
+				p.process(match)
+			else:
+				msg = "Parsing of {0} failed at line:{1}".format(a, match.line())
+				reporter.error(msg)
+				reporter.error(match.textaround())
+				raise Exception("Parsing of {0} failed at line:{1}\n> {2}".format(a, match.line(), match.textaround()))
+	if args.output:
+		output.close()
 if __name__ == "__main__":
 	import sys
 	run(sys.argv[1:])
