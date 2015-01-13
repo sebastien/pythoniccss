@@ -217,7 +217,6 @@ class Processor(AbstractProcessor):
 	and the result is streamed out through the `_write` call."""
 
 	RGB        = None
-	PEM        = 1 / 14.0
 
 	RE_SPACES            = re.compile("\s+")
 	RE_UNQUOTED          = re.compile("\!?[\./\w\d_-]+")
@@ -597,6 +596,7 @@ class Processor(AbstractProcessor):
 	def onNumber( self, match, value, unit ):
 		value = float(value) if "." in value else int(value)
 		unit  = unit if unit else None
+		if unit == "%": value = value / 100.0
 		return (value, unit)
 
 	def onDeclaration( self, match, decorator, name, value ):
@@ -739,7 +739,14 @@ class Processor(AbstractProcessor):
 
 	def _valueAsString( self, value ):
 		v, u = value ; u = u or ""
-		if   u == "C":
+		if u == "%":
+			v = 100.0 * v
+			d = int(v)
+			if v == d:
+				return "{0:d}%".format(d)
+			else:
+				return "{0:f}%".format(v)
+		elif   u == "C":
 			if type(v) in (str, unicode):
 				# If we have a string instead of a tuple, we pass it as-is
 				return v
