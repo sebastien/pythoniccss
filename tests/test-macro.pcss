@@ -1,9 +1,10 @@
-@macro cleared:
-	clear:   both
-	content: ""
-	display: block
-	height:  0em
+@macro expand
+	position: absolute
+	top:    0em
+	bottom: 0em
+	right:  0em
+	left:   0em
 
-div.cleared:
-	cleared()
-
+div:
+	font-weight: bold
+	expand()

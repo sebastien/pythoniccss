@@ -165,7 +165,7 @@ def grammar(g=None):
 	# =========================================================================
 
 	g.rule      ("Assignment",       s.CSS_PROPERTY._as("name"), s.COLON, s.Expression.oneOrMore()._as("values"), s.IMPORTANT.optional()._as("important"), s.SEMICOLON.optional())
-	g.rule      ("MacroInvocation",  s.MACRO_NAME,   s.LP, s.Arguments.optional(), s.RP)
+	g.rule      ("MacroInvocation",  s.MACRO_NAME._as("name"),   s.LP, s.Arguments.optional()._as("arguments"), s.RP)
 
 	# =========================================================================
 	# BLOCK STRUCTURE
@@ -178,8 +178,8 @@ def grammar(g=None):
 	g.rule("Statement",     s.CheckIndent._as("indent"), g.agroup(s.Assignment, s.MacroInvocation, s.COMMENT), s.EOL).disableFailMemoize()
 	g.rule("Block",         s.CheckIndent._as("indent"), g.agroup(s.PERCENTAGE, s.SelectionList)._as("selector"), s.COLON.optional(), s.EOL, s.Indent, s.Statement.zeroOrMore()._as("code"), s.Dedent).disableFailMemoize()
 
-	g.rule    ("SpecialDeclaration",   s.CheckIndent, s.SPECIAL_NAME, s.SPECIAL_FILTER.optional(), s.Parameters.optional(), s.COLON)
-	g.rule    ("SpecialBlock",         s.CheckIndent, s.SpecialDeclaration, s.EOL, s.Indent, s.Statement.zeroOrMore(), s.Dedent).disableFailMemoize()
+	g.rule    ("SpecialDeclaration",   s.CheckIndent, s.SPECIAL_NAME._as("type"), s.SPECIAL_FILTER.optional()._as("filter"),  s.Parameters.optional()._as("parameters"), s.COLON.optional())
+	g.rule    ("SpecialBlock",         s.CheckIndent, s.SpecialDeclaration._as("type"), s.EOL, s.Indent, s.Statement.zeroOrMore()._as("code"), s.Dedent).disableFailMemoize()
 
 	# =========================================================================
 	# AXIOM
@@ -325,6 +325,9 @@ class Processor(AbstractProcessor):
 		self.scopes     = []
 		self._header    = None
 		self._footer    = None
+		self._mode      = None
+		self._macro     = None
+		self._macros    = {}
 
 	# ==========================================================================
 	# EVALUATION
@@ -448,7 +451,7 @@ class Processor(AbstractProcessor):
 		return ["V", value]
 
 	def onParameters( self, match ):
-		return [self.defaultProcess(match[0])] + [self.process(_[1]) for _ in self.process(match[1])]
+		return [self.defaultProcess(match[0])] + [self.process(_[1]) for _ in self.process(match[1]) or []]
 
 	def onArguments( self, match ):
 		m0 = self.process(match[0])
@@ -568,6 +571,16 @@ class Processor(AbstractProcessor):
 		self._header = ",\n".join((self._selectionAsString(_) for _ in self.scopes[-1])) + " {"
 		return self._header
 
+	def onSpecialDeclaration( self, match, type, filter, parameters ):
+		return (type,  filter, parameters)
+
+	def onMacroInvocation( self, match, name, arguments ):
+		if name not in self._macros:
+			raise Exception("Macro not defined: {0}".format(name))
+		assert not arguments, "Argumnets not supported yet, got: {0}".format(arguments)
+		for line in self._macros[name]:
+			line()
+
 	def onNumber( self, match, value, unit ):
 		value = float(value) if "." in value else int(value)
 		unit  = unit if unit else None
@@ -579,6 +592,9 @@ class Processor(AbstractProcessor):
 		return None
 
 	def onAssignment( self, match, name, values, important ):
+		if self._mode == "macro":
+			self._macro.append(lambda: self.onAssignment(match, name, values, important))
+			return None
 		if self._header:
 			self._write(self._header)
 			self._header = None
@@ -604,12 +620,24 @@ class Processor(AbstractProcessor):
 			return self._write("{0}: {1}{2};".format(name, " ".join(evalues), suffix), indent=1)
 
 	def onBlock( self, match, indent ):
+		self._mode = None
 		if self._footer:
 			self._write(self._footer)
 			self._footer = None
 		while len(self.scopes) > indent:
 			self.scopes.pop()
 		self.process(match["selector"])
+		self.process(match["code"])
+
+	def onSpecialBlock( self, match, type ):
+		type, filter, params = type
+		if type == "@macro":
+			self._mode   = "macro"
+			self._macro  = []
+			name         = params[0]
+			self._macros[name] = self._macro
+		else:
+			self._mode = None
 		self.process(match["code"])
 
 	def onSource( self, match ):
