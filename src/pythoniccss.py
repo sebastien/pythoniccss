@@ -102,7 +102,7 @@ def grammar(g=None):
 	g.token   ("NODE_ID",          "#[_a-zA-Z][_a-zA-Z0-9\-]*")
 
 	# SEE: http://www.w3schools.com/cssref/css_units.asp
-	g.token   ("UNIT",             "em|ex|px|cm|mm|in|pt|pc|ch|rem|vh|vmin|vmax|s|deg|rad|grad|ms|Hz|kHz|\%")
+	g.token   ("UNIT",             "em|ex|px|pem|cm|mm|in|pt|pc|ch|rem|vh|vmin|vmax|s|deg|rad|grad|ms|Hz|kHz|\%")
 	g.token   ("VARIABLE_NAME",    "[\w_Processor()][\w\d_]*")
 	g.token   ("METHOD_NAME",      "[\w_][\w\d_]*")
 	g.token   ("MACRO_NAME",       "[\w_][\w\d_]*")
@@ -216,6 +216,7 @@ class Processor(AbstractProcessor):
 	and the result is streamed out through the `_write` call."""
 
 	RGB        = None
+	PEM        = 1 / 14.0
 
 	RE_SPACES            = re.compile("\s+")
 	RE_UNQUOTED          = re.compile("\!?[\./\w\d_-]+")
@@ -338,6 +339,11 @@ class Processor(AbstractProcessor):
 		"""
 		if e[0] == "V":
 			v = e[1]
+			u = v[1]
+			if u == "pem":
+				pem = self.resolve("PEM")
+				pem = pem[0] if pem else self.PEM
+				v    = (v[0] * pem, "em")
 			if resolve and v[1] == "R":
 				# We have a reference
 				return self.resolve(v[0], propertyName=name, prefix=prefix)
