@@ -6,7 +6,7 @@
 # License           : BSD License
 # -----------------------------------------------------------------------------
 # Creation date     : 14-Jul-2013
-# Last modification : 30-Dec-2014
+# Last modification : 13-Jan-2015
 # -----------------------------------------------------------------------------
 
 import re, os, sys, argparse, json
@@ -17,7 +17,7 @@ try:
 except ImportError:
 	reporter = None
 
-VERSION = "0.0.8"
+VERSION = "0.0.9"
 LICENSE = "http://ffctn.com/doc/licenses/bsd"
 
 __doc__ = """
@@ -668,6 +668,8 @@ class Processor(AbstractProcessor):
 
 	def _mergeScopes( self, a, b):
 		# Merges the contents of scope A and B
+		if not b: return a
+		if not a: return b
 		return [self._mergeScopeUnit(a[i], b[i]) or None for i in range(len(a))]
 
 	def _scopeAsString( self, scope ):
