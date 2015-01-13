@@ -103,9 +103,9 @@ def grammar(g=None):
 
 	# SEE: http://www.w3schools.com/cssref/css_units.asp
 	g.token   ("UNIT",             "em|ex|px|pem|cm|mm|in|pt|pc|ch|rem|vh|vmin|vmax|s|deg|rad|grad|ms|Hz|kHz|\%")
-	g.token   ("VARIABLE_NAME",    "[\w_Processor()][\w\d_]*")
+	g.token   ("VARIABLE_NAME",    "[\w_][\w\d_]*")
 	g.token   ("METHOD_NAME",      "[\w_][\w\d_]*")
-	g.token   ("MACRO_NAME",       "[\w_][\w\d_]*")
+	g.token   ("NAME",             "[\w_][\w\d_]*")
 	g.token   ("REFERENCE",        "\$([\w_][\w\d_]*)")
 	g.token   ("COLOR_NAME",       "[a-z][a-z0-9\-]*")
 	g.token   ("COLOR_HEX",        "\#([A-Fa-f0-9][A-Fa-f0-9]?[A-Fa-f0-9]?[A-Fa-f0-9]?[A-Fa-f0-9]?[A-Fa-f0-9]?([A-Fa-f0-9][A-Fa-f0-9])?)")
@@ -165,7 +165,7 @@ def grammar(g=None):
 	# =========================================================================
 
 	g.rule      ("Assignment",       s.CSS_PROPERTY._as("name"), s.COLON, s.Expression.oneOrMore()._as("values"), s.IMPORTANT.optional()._as("important"), s.SEMICOLON.optional())
-	g.rule      ("MacroInvocation",  s.MACRO_NAME._as("name"),   s.LP, s.Arguments.optional()._as("arguments"), s.RP)
+	g.rule      ("MacroInvocation",  s.NAME._as("name"),   s.LP, s.Arguments.optional()._as("arguments"), s.RP)
 
 	# =========================================================================
 	# BLOCK STRUCTURE
@@ -178,7 +178,7 @@ def grammar(g=None):
 	g.rule("Statement",     s.CheckIndent._as("indent"), g.agroup(s.Assignment, s.MacroInvocation, s.COMMENT), s.EOL).disableFailMemoize()
 	g.rule("Block",         s.CheckIndent._as("indent"), g.agroup(s.PERCENTAGE, s.SelectionList)._as("selector"), s.COLON.optional(), s.EOL, s.Indent, s.Statement.zeroOrMore()._as("code"), s.Dedent).disableFailMemoize()
 
-	g.rule    ("SpecialDeclaration",   s.CheckIndent, s.SPECIAL_NAME._as("type"), s.SPECIAL_FILTER.optional()._as("filter"),  s.Parameters.optional()._as("parameters"), s.COLON.optional())
+	g.rule    ("SpecialDeclaration",   s.CheckIndent, s.SPECIAL_NAME._as("type"), s.SPECIAL_FILTER.optional()._as("filter"),  s.NAME._as("name"), s.Parameters.optional()._as("parameters"), s.COLON.optional())
 	g.rule    ("SpecialBlock",         s.CheckIndent, s.SpecialDeclaration._as("type"), s.EOL, s.Indent, s.Statement.zeroOrMore()._as("code"), s.Dedent).disableFailMemoize()
 
 	# =========================================================================
@@ -320,7 +320,7 @@ class Processor(AbstractProcessor):
 		"""Resets the state of the processor. To be called inbetween parses."""
 		self.result     = []
 		self.indent     = 0
-		self.variables  = {}
+		self.variables  = [{}]
 		self._evaluated = {}
 		self.scopes     = []
 		self._header    = None
@@ -387,15 +387,18 @@ class Processor(AbstractProcessor):
 		else:
 			raise ProcessingException("Evaluate not implemented for: {0} in {1}".format(e, name))
 
-	def resolve( self, name, propertyName=None, prefix=None ):
-		if name not in self.variables:
+	def resolve( self, name, propertyName=None, prefix=None, depth=1 ):
+		variables = self.variables[len(self.variables) - depth] if len(self.variables) >= depth else None
+		if not variables:
 			raise ProcessingException("Variable not defined: {0}".format(name))
+		elif name not in variables:
+			return self.resolve(name, propertyName, prefix, depth + 1)
 		else:
 			cname = name + (":" + propertyName if propertyName else "") + (":" + prefix if prefix else "")
 			if cname in self._evaluated:
 				return self._evaluated[cname]
 			else:
-				v = self.evaluate(self.variables[name], name=propertyName, prefix=prefix)
+				v = self.evaluate(variables[name], name=propertyName, prefix=prefix)
 				self._evaluated[cname] = v
 				return v
 
@@ -571,15 +574,22 @@ class Processor(AbstractProcessor):
 		self._header = ",\n".join((self._selectionAsString(_) for _ in self.scopes[-1])) + " {"
 		return self._header
 
-	def onSpecialDeclaration( self, match, type, filter, parameters ):
-		return (type,  filter, parameters)
+	def onSpecialDeclaration( self, match, type, filter, name, parameters ):
+		return (type, filter, name, parameters)
 
 	def onMacroInvocation( self, match, name, arguments ):
 		if name not in self._macros:
 			raise Exception("Macro not defined: {0}".format(name))
-		assert not arguments, "Argumnets not supported yet, got: {0}".format(arguments)
-		for line in self._macros[name]:
+		params    = self._macros[name][0] or []
+		scope     = {}
+		arguments = arguments or []
+		assert len(arguments) <= len(params), "Too many arguments given to macro: {0}, {1} given, expecting {2}".format(name, arguments, params)
+		for i,a in enumerate(arguments):
+			scope[params[i]] = ["V", a]
+		self.variables.append(scope)
+		for line in self._macros[name][1]:
 			line()
+		self.variables.pop()
 
 	def onNumber( self, match, value, unit ):
 		value = float(value) if "." in value else int(value)
@@ -588,7 +598,7 @@ class Processor(AbstractProcessor):
 
 	def onDeclaration( self, match, name, value ):
 		name = name
-		self.variables[name] = value
+		self.variables[-1][name] = value
 		return None
 
 	def onAssignment( self, match, name, values, important ):
@@ -630,12 +640,11 @@ class Processor(AbstractProcessor):
 		self.process(match["code"])
 
 	def onSpecialBlock( self, match, type ):
-		type, filter, params = type
+		type, filter, name, params = type
 		if type == "@macro":
 			self._mode   = "macro"
 			self._macro  = []
-			name         = params[0]
-			self._macros[name] = self._macro
+			self._macros[name] = [params, self._macro]
 		else:
 			self._mode = None
 		self.process(match["code"])
