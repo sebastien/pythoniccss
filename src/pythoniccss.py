@@ -102,7 +102,8 @@ def grammar(g=None):
 	g.token   ("NODE_ID",          "#[_a-zA-Z][_a-zA-Z0-9\-]*")
 
 	# SEE: http://www.w3schools.com/cssref/css_units.asp
-	g.token   ("UNIT",             "em|ex|px|pem|cm|mm|in|pt|pc|ch|rem|vh|vmin|vmax|s|deg|rad|grad|ms|Hz|kHz|\%")
+	#g.token   ("UNIT",             "em|ex|px|pem|cm|mm|in|pt|pc|ch|rem|vh|vmin|vmax|s|deg|rad|grad|ms|Hz|kHz|\%")
+	g.token   ("UNIT",             "[\w]+|\%")
 	g.token   ("VARIABLE_NAME",    "[\w_][\w\d_]*")
 	g.token   ("METHOD_NAME",      "[\w_][\w\d_]*")
 	g.token   ("NAME",             "[\w_][\w\d_]*")
@@ -158,7 +159,7 @@ def grammar(g=None):
 
 	g.rule      ("Comment",          s.COMMENT.oneOrMore(), s.EOL)
 	g.rule      ("Include",          s.INCLUDE, s.PATH,     s.EOL)
-	g.rule      ("Declaration",      s.VARIABLE_NAME._as("name"), s.EQUAL, s.Expression._as("value"), s.EOL)
+	g.rule      ("Declaration",      s.SPECIAL_NAME.optional()._as("decorator"), s.VARIABLE_NAME._as("name"), s.EQUAL, s.Expression._as("value"), s.EOL)
 
 	# =========================================================================
 	# OPERATIONS
@@ -321,6 +322,7 @@ class Processor(AbstractProcessor):
 		self.result     = []
 		self.indent     = 0
 		self.variables  = [{}]
+		self.units      = {}
 		self._evaluated = {}
 		self.scopes     = []
 		self._header    = None
@@ -343,10 +345,11 @@ class Processor(AbstractProcessor):
 		if e[0] == "V":
 			v = e[1]
 			u = v[1]
-			if u == "pem":
-				pem = self.resolve("PEM")
-				pem = pem[0] if pem else self.PEM
-				v    = (v[0] * pem, "em")
+			if u in self.units:
+				# FIXME: It might be better to pre-calculate the unit values
+				# as this surely adds quite a lot of CPU time
+				u    = self.evaluate(self.units[u])
+				v    = (v[0] * u[0], u[1])
 			if resolve and v[1] == "R":
 				# We have a reference
 				return self.resolve(v[0], propertyName=name, prefix=prefix)
@@ -596,9 +599,14 @@ class Processor(AbstractProcessor):
 		unit  = unit if unit else None
 		return (value, unit)
 
-	def onDeclaration( self, match, name, value ):
-		name = name
-		self.variables[-1][name] = value
+	def onDeclaration( self, match, decorator, name, value ):
+		if not decorator:
+			name = name
+			self.variables[-1][name] = value
+		elif decorator == "@unit":
+			self.units[name] = value
+		else:
+			raise NotImplementedError
 		return None
 
 	def onAssignment( self, match, name, values, important ):
@@ -759,13 +767,13 @@ class Processor(AbstractProcessor):
 			if self.RE_UNQUOTED.match(v):
 				return "{0:s}".format(v,u)
 			else:
-				return "{0:s}".format(json.dumps(v),u)
+				return "{0:s}".format(json.dumps(v).replace("\u", "\\"),u)
 		elif type(v) == unicode:
 			# FIXME: Proper escaping
 			if self.RE_UNQUOTED.match(v):
 				return "{0:s}".format(v,u)
 			else:
-				return "{0:s}".format(json.dumps(v),u)
+				return "{0:s}".format(json.dumps(v).replace("\u", "\\"),u)
 		else:
 			raise ProcessingException("Value string conversion not implemented: {0}".format(value))
 
