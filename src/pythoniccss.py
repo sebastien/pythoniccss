@@ -329,6 +329,7 @@ class Processor(AbstractProcessor):
 		self._mode      = None
 		self._macro     = None
 		self._macros    = {}
+		self._property  = None
 
 	# ==========================================================================
 	# EVALUATION
@@ -618,6 +619,7 @@ class Processor(AbstractProcessor):
 			self._header = None
 			self._footer = "}\n"
 		suffix = "!important" if important else ""
+		self._property = name
 		try:
 			evalues = [self._valueAsString(self.evaluate(_, name=name)) for _ in values]
 		except ProcessingException as e:
@@ -771,13 +773,13 @@ class Processor(AbstractProcessor):
 			return v + u
 		elif type(v) == str:
 			# FIXME: Proper escaping
-			if self.RE_UNQUOTED.match(v):
+			if self._property != "content" and self.RE_UNQUOTED.match(v):
 				return "{0:s}".format(v,u)
 			else:
 				return "{0:s}".format(json.dumps(v).replace("\u", "\\"),u)
 		elif type(v) == unicode:
 			# FIXME: Proper escaping
-			if self.RE_UNQUOTED.match(v):
+			if self._property != "content" and self.RE_UNQUOTED.match(v):
 				return "{0:s}".format(v,u)
 			else:
 				return "{0:s}".format(json.dumps(v).replace("\u", "\\"),u)
