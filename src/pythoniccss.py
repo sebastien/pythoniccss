@@ -153,8 +153,9 @@ def grammar(g=None):
 
 	g.rule      ("Invocation",   g.arule(s.DOT,     s.METHOD_NAME).optional()._as("method"), s.LP, s.Arguments.optional()._as("arguments"), s.RP)
 	g.rule      ("InfixOperation", s.INFIX_OPERATOR, s.Expression)
+	g.rule      ("Qualifier",    s.SPACE, s.Expression._as("expression"))
 	# TODO: Might be better to use COMMA as a suffix to chain expressions
-	s.Suffixes.set(s.InfixOperation, s.Invocation)
+	s.Suffixes.set(s.InfixOperation, s.Invocation, s.Qualifier)
 
 	# =========================================================================
 	# LINES (BODY)
@@ -488,6 +489,11 @@ class Processor(AbstractProcessor):
 		expr = self.process(match[1])
 		return ["O", op, None, expr]
 
+	def onQualifier( self, match, expression ):
+		print "QUALIFIER", expression
+		return ["L", expression]
+		return expression
+
 	def onSuffixes( self, match ):
 		return self.process(match.group())
 
@@ -654,6 +660,7 @@ class Processor(AbstractProcessor):
 			self._footer = "}\n"
 		suffix = "!important" if important else ""
 		self._property = name
+		print "VALUES", values
 		try:
 			evalues = [self._valueAsString(self.evaluate(_, name=name)) for _ in values]
 		except ProcessingException as e:
