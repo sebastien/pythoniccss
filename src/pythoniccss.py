@@ -6,7 +6,7 @@
 # License           : BSD License
 # -----------------------------------------------------------------------------
 # Creation date     : 14-Jul-2013
-# Last modification : 13-Jan-2015
+# Last modification : 19-Jan-2015
 # -----------------------------------------------------------------------------
 
 import re, os, sys, argparse, json
@@ -17,7 +17,7 @@ try:
 except ImportError:
 	reporter = None
 
-VERSION = "0.0.9"
+VERSION = "0.1.0"
 LICENSE = "http://ffctn.com/doc/licenses/bsd"
 
 __doc__ = """
@@ -85,6 +85,7 @@ def grammar(g=None):
 	g.word    ("RP",               ")")
 	g.word    ("SELF",             "&")
 	g.word    ("COMMA",            ",")
+	g.word    ("MACRO",            "@macro")
 	g.word    ("SEMICOLON",        ";")
 	g.word    ("EQUAL",            "=")
 	g.word    ("LSBRACKET",        "[")
@@ -94,7 +95,7 @@ def grammar(g=None):
 	g.token   ("PERCENTAGE",       "\d+(\.\d+)?%")
 	g.token   ("STRING_SQ",        "'((\\\\'|[^'\\n])*)'")
 	g.token   ("STRING_DQ",        "\"((\\\\\"|[^\"\n])*)\"")
-	g.token   ("STRING_UQ",        "[^\s\n\*\+;\(\)\[\]]+")
+	g.token   ("STRING_UQ",        "[^\s\n\*\+,:;\(\)\[\]]+")
 	g.token   ("INFIX_OPERATOR",   "[\-\+\*\/]")
 
 	g.token   ("NODE",             "\*|([a-zA-Z][\-_a-zA-Z0-9\-]*)")
@@ -142,8 +143,9 @@ def grammar(g=None):
 	g.group     ("Value",            s.Number, s.COLOR_HEX, s.COLOR_RGB, s.REFERENCE, s.String)
 	g.rule      ("Parameters",       s.VARIABLE_NAME, g.arule(s.COMMA, s.VARIABLE_NAME).zeroOrMore())
 	g.rule      ("Arguments",        s.Value, g.arule(s.COMMA, s.Value).zeroOrMore())
-
 	g.rule      ("Expression")
+	g.rule      ("ExpressionList", s.Expression._as("head"), g.arule(s.COMMA, s.Expression).zeroOrMore()._as("tail"))
+
 	# NOTE: We use Prefix and Suffix to avoid recursion, which creates a lot
 	# of problems with parsing expression grammars
 	g.group     ("Prefix", s.Value, g.arule(s.LP, s.Expression, s.RP))
@@ -151,6 +153,7 @@ def grammar(g=None):
 
 	g.rule      ("Invocation",   g.arule(s.DOT,     s.METHOD_NAME).optional()._as("method"), s.LP, s.Arguments.optional()._as("arguments"), s.RP)
 	g.rule      ("InfixOperation", s.INFIX_OPERATOR, s.Expression)
+	# TODO: Might be better to use COMMA as a suffix to chain expressions
 	s.Suffixes.set(s.InfixOperation, s.Invocation)
 
 	# =========================================================================
@@ -159,13 +162,13 @@ def grammar(g=None):
 
 	g.rule      ("Comment",          s.COMMENT.oneOrMore(), s.EOL)
 	g.rule      ("Include",          s.INCLUDE, s.PATH,     s.EOL)
-	g.rule      ("Declaration",      s.SPECIAL_NAME.optional()._as("decorator"), s.VARIABLE_NAME._as("name"), s.EQUAL, s.Expression._as("value"), s.EOL)
+	g.rule      ("Declaration",      s.SPECIAL_NAME.optional()._as("decorator"), s.VARIABLE_NAME._as("name"), s.EQUAL, s.ExpressionList._as("value"), s.EOL)
 
 	# =========================================================================
 	# OPERATIONS
 	# =========================================================================
 
-	g.rule      ("Assignment",       s.CSS_PROPERTY._as("name"), s.COLON, s.Expression.oneOrMore()._as("values"), s.IMPORTANT.optional()._as("important"), s.SEMICOLON.optional())
+	g.rule      ("Assignment",       s.CSS_PROPERTY._as("name"), s.COLON, s.ExpressionList._as("values"), s.IMPORTANT.optional()._as("important"), s.SEMICOLON.optional())
 	g.rule      ("MacroInvocation",  s.NAME._as("name"),   s.LP, s.Arguments.optional()._as("arguments"), s.RP)
 
 	# =========================================================================
@@ -179,14 +182,18 @@ def grammar(g=None):
 	g.rule("Statement",     s.CheckIndent._as("indent"), g.agroup(s.Assignment, s.MacroInvocation, s.COMMENT), s.EOL).disableFailMemoize()
 	g.rule("Block",         s.CheckIndent._as("indent"), g.agroup(s.PERCENTAGE, s.SelectionList)._as("selector"), s.COLON.optional(), s.EOL, s.Indent, s.Statement.zeroOrMore()._as("code"), s.Dedent).disableFailMemoize()
 
-	g.rule    ("SpecialDeclaration",   s.SPECIAL_NAME._as("type"), s.SPECIAL_FILTER.optional()._as("filter"),  s.NAME._as("name"), s.Parameters.optional()._as("parameters"), s.COLON.optional())
+	g.rule    ("MacroDeclaration", s.MACRO, s.NAME._as("name"), s.Parameters.optional()._as("parameters"), s.COLON.optional())
+	g.rule    ("MacroBlock",       s.CheckIndent._as("indent"), s.MacroDeclaration._as("type"), s.EOL, s.Indent, s.Statement.zeroOrMore()._as("code"), s.Dedent).disableFailMemoize()
+
+	# FIXME: The special declaration is a bit broken... should work better
+	g.rule    ("SpecialDeclaration",   s.SPECIAL_NAME._as("type"), s.SPECIAL_FILTER.optional()._as("filter"),  s.NAME.optional()._as("name"), s.Parameters.optional()._as("parameters"), s.COLON.optional())
 	g.rule    ("SpecialBlock",         s.CheckIndent._as("indent"), s.SpecialDeclaration._as("type"), s.EOL, s.Indent, s.Statement.zeroOrMore()._as("code"), s.Dedent).disableFailMemoize()
 
 	# =========================================================================
 	# AXIOM
 	# =========================================================================
 
-	g.group     ("Source",  g.agroup(s.Comment, s.Block, s.SpecialBlock, s.Declaration, s.Include).zeroOrMore())
+	g.group     ("Source",  g.agroup(s.Comment, s.Block, s.MacroBlock, s.SpecialBlock, s.Declaration, s.Include).zeroOrMore())
 	g.skip(s.SPACE)
 	g.axiom(s.Source)
 	return g
@@ -341,8 +348,11 @@ class Processor(AbstractProcessor):
 
 		- values are encoded as `('V', (value, unit))`
 		- operations are encoded as `('O', operator, lvalue, rvalue)`
+		- literals are encoded as `('c', string)`
 		"""
-		if e[0] == "V":
+		if e[0] == "L":
+			return [[self.evaluate(_, unit, name, resolve, prefix) for _ in e[1]], "L"]
+		elif e[0] == "V":
 			v = e[1]
 			u = v[1]
 			if u in self.units:
@@ -514,6 +524,12 @@ class Processor(AbstractProcessor):
 				res = ["O", rop, ["O", op, a, b], c]
 		return res
 
+	def onExpressionList( self, match, head, tail=None ):
+		if tail:
+			return [["L", [head] + [_[1] for _ in tail]]]
+		else:
+			return [head]
+
 	def onAttribute( self, match, name, value ):
 		return "[{0}{1}{2}]".format(name, value[0] if value else "", value[1] if value else "")
 
@@ -583,6 +599,9 @@ class Processor(AbstractProcessor):
 		return self._header
 
 	def onSpecialDeclaration( self, match, type, filter, name, parameters ):
+		return (type, filter, name, parameters)
+
+	def onMacroDeclaration( self, match, type, filter, name, parameters ):
 		return (type, filter, name, parameters)
 
 	def onMacroInvocation( self, match, name, arguments ):
@@ -667,20 +686,30 @@ class Processor(AbstractProcessor):
 		self.process(match["selector"])
 		self.process(match["code"])
 
+	def onMacroBlock( self, match, type, indent=None):
+		if indent == 0:
+			self._mode  = None
+		assert self._mode != "macro"
+		type, filter, name, params = type
+		self._mode   = "macro"
+		self._macro  = []
+		self._macros[name] = [params, self._macro]
+		self.process(match["code"])
+
 	def onSpecialBlock( self, match, type, indent=None):
 		if indent == 0:
 			self._mode  = None
 		elif self._mode == "macro":
-			# self._macro.append(lambda: self.onSpecialBlock(indent, match, type))
+			self._macro.append(lambda: self.onSpecialBlock(indent, match, type))
 			return None
+		if self._footer and self._mode == None:
+			self._write(self._footer)
+			self._footer = None
 		type, filter, name, params = type
-		if type == "@macro":
-			self._mode   = "macro"
-			self._macro  = []
-			self._macros[name] = [params, self._macro]
-		else:
-			self._mode = None
+		self._write("{0}{1} {2} {3} {{".format(type, filter or "", name or "", ", ".join(params) if params else  ""))
+		self._mode = None
 		self.process(match["code"])
+		self._footer = "}"
 
 	def onSource( self, match ):
 		result = self.defaultProcess(match)
@@ -764,7 +793,9 @@ class Processor(AbstractProcessor):
 
 	def _valueAsString( self, value ):
 		v, u = value ; u = u or ""
-		if u == "%":
+		if   u == "L":
+			return ", ".join([self._valueAsString(_) for _ in v])
+		elif u == "%":
 			v = 100.0 * v
 			d = int(v)
 			if v == d:
@@ -835,6 +866,7 @@ def run(args):
 	)
 	oparser.add_argument("files", metavar="FILE", type=str, nargs='+', help='The .pcss files to parse')
 	oparser.add_argument("--report",  dest="report",  action="store_true", default=False)
+	oparser.add_argument("--verbose",  dest="verbose",  action="store_true", default=False)
 	oparser.add_argument("--output",  type=str,  dest="output", default=None)
 	# We create the parse and register the options
 	args = oparser.parse_args(args=args)
@@ -843,6 +875,7 @@ def run(args):
 	if not args.files:
 		sys.stderr.write(USAGE + "\n")
 	output = sys.stdout
+	# if args.verbose: getGrammar().setVerbose()
 	if args.output: output = open(args.output, "w")
 	for a in args.files:
 		if reporter: reporter.info("Processing: {0}".format(a))
