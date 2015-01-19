@@ -630,6 +630,8 @@ class Processor(AbstractProcessor):
 		return (value, unit)
 
 	def onDeclaration( self, match, decorator, name, value ):
+		assert len(value) == 1
+		value = value[0]
 		if self._mode == "macro":
 			self._macro.append(lambda: self.onDeclaration(match, decorator, name, value))
 			return None
