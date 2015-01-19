@@ -1,0 +1,20 @@
+// NOTE: In this example, we had the macro declaration interfering with the 
+// resolution.
+@unit pem = 1em / $BASE_FONT
+
+@macro expand
+	position: absolute
+	top:    0em
+	bottom: 0em
+	right:  0em
+	left:   0em
+
+NAVIGATION_WIDTH         = 50pem
+SCREEN_DESCRIPTION_WIDTH = 200pem
+
+.Application:
+	.screen:
+		.description:
+			width: $SCREEN_DESCRIPTION_WIDTH
+
+// EOF

@@ -604,8 +604,8 @@ class Processor(AbstractProcessor):
 	def onSpecialDeclaration( self, match, type, filter, name, parameters ):
 		return (type, filter, name, parameters)
 
-	def onMacroDeclaration( self, match, type, filter, name, parameters ):
-		return (type, filter, name, parameters)
+	def onMacroDeclaration( self, match, name, parameters ):
+		return ("@macro", None, name, parameters)
 
 	def onMacroInvocation( self, match, name, arguments ):
 		if self._mode == "macro":
@@ -635,9 +635,7 @@ class Processor(AbstractProcessor):
 	def onDeclaration( self, match, decorator, name, value ):
 		assert len(value) == 1
 		value = value[0]
-		if self._mode == "macro":
-			self._macro.append(lambda: self.onDeclaration(match, decorator, name, value))
-			return None
+		self._mode = None
 		if not decorator:
 			name = name
 			self.variables[-1][name] = value
