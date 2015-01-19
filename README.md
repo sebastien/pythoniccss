@@ -200,6 +200,20 @@ BACKGROUND_COLOR     = white
 BACKGROUND_COLOR_ALT = #F0F0F0
 ```
 
+Special functions/methods
+=========================
+
+## Embedding URLs
+
+If you would like to embed an image as a data-url, you can do it by
+using the `.embed()` method call after an `url()` property.
+
+```
+background-image: url(http://ffctn.com/lib/images/nothing.png).embed()
+```
+
+which will download/retrieve the file and produce a base-64 encoded
+data URL version of it.
 Macros
 ======
 
@@ -264,6 +278,8 @@ Media queries
 
 Import
 -------
+
+The `@import` CSS directive is not supported by PCSS.
 
 ```
 @import url("import4.css") tv, print;
