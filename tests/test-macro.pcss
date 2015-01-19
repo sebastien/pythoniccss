@@ -1,3 +1,4 @@
+// Simple macro
 @macro expand
 	position: absolute
 	top:    0em
@@ -5,6 +6,24 @@
 	right:  0em
 	left:   0em
 
+// Macro with 1 argument
+@macro font delta
+	font-size: $delta * 100%
+	line-height: 1.35em
+
+// Macro with multiple arguments
+@macro f a, b
+	font-size: $a * 100%
+	line-height: $b
+
+// Macro with nested rules
+@macro g
+	line-height: 1.25em
+	&:hover:
+		background:red
+
 div:
 	font-weight: bold
-	expand()
+	font(3)
+	f(1.0, 2.5em)
+	g()

@@ -179,8 +179,8 @@ def grammar(g=None):
 	g.rule("Statement",     s.CheckIndent._as("indent"), g.agroup(s.Assignment, s.MacroInvocation, s.COMMENT), s.EOL).disableFailMemoize()
 	g.rule("Block",         s.CheckIndent._as("indent"), g.agroup(s.PERCENTAGE, s.SelectionList)._as("selector"), s.COLON.optional(), s.EOL, s.Indent, s.Statement.zeroOrMore()._as("code"), s.Dedent).disableFailMemoize()
 
-	g.rule    ("SpecialDeclaration",   s.CheckIndent, s.SPECIAL_NAME._as("type"), s.SPECIAL_FILTER.optional()._as("filter"),  s.NAME._as("name"), s.Parameters.optional()._as("parameters"), s.COLON.optional())
-	g.rule    ("SpecialBlock",         s.CheckIndent, s.SpecialDeclaration._as("type"), s.EOL, s.Indent, s.Statement.zeroOrMore()._as("code"), s.Dedent).disableFailMemoize()
+	g.rule    ("SpecialDeclaration",   s.SPECIAL_NAME._as("type"), s.SPECIAL_FILTER.optional()._as("filter"),  s.NAME._as("name"), s.Parameters.optional()._as("parameters"), s.COLON.optional())
+	g.rule    ("SpecialBlock",         s.CheckIndent._as("indent"), s.SpecialDeclaration._as("type"), s.EOL, s.Indent, s.Statement.zeroOrMore()._as("code"), s.Dedent).disableFailMemoize()
 
 	# =========================================================================
 	# AXIOM
@@ -322,7 +322,7 @@ class Processor(AbstractProcessor):
 		self.indent     = 0
 		self.variables  = [{}]
 		self.units      = {}
-		self._evaluated = {}
+		self._evaluated = [{}]
 		self.scopes     = []
 		self._header    = None
 		self._footer    = None
@@ -352,7 +352,9 @@ class Processor(AbstractProcessor):
 				v    = (v[0] * u[0], u[1])
 			if resolve and v[1] == "R":
 				# We have a reference
-				return self.resolve(v[0], propertyName=name, prefix=prefix)
+				n = v[0]
+				v = self.resolve(v[0], propertyName=name, prefix=prefix)
+				return v
 			if self.IsColorProperty(name) and v[1] == "S":
 				# We have a color name as a string in a color property, we expand it
 				return (self.ColorFromName(v[0]) or v[0], "C")
@@ -391,18 +393,19 @@ class Processor(AbstractProcessor):
 			raise ProcessingException("Evaluate not implemented for: {0} in {1}".format(e, name))
 
 	def resolve( self, name, propertyName=None, prefix=None, depth=1 ):
-		variables = self.variables[len(self.variables) - depth] if len(self.variables) >= depth else None
+		level     = len(self.variables) - depth
+		variables = self.variables[level] if len(self.variables) >= depth else None
 		if not variables:
 			raise ProcessingException("Variable not defined: {0}".format(name))
 		elif name not in variables:
 			return self.resolve(name, propertyName, prefix, depth + 1)
 		else:
 			cname = name + (":" + propertyName if propertyName else "") + (":" + prefix if prefix else "")
-			if cname in self._evaluated:
-				return self._evaluated[cname]
+			if cname in self._evaluated[level]:
+				return self._evaluated[level][cname]
 			else:
 				v = self.evaluate(variables[name], name=propertyName, prefix=prefix)
-				self._evaluated[cname] = v
+				self._evaluated[level][cname] = v
 				return v
 
 	# ==========================================================================
@@ -457,7 +460,9 @@ class Processor(AbstractProcessor):
 		return ["V", value]
 
 	def onParameters( self, match ):
-		return [self.defaultProcess(match[0])] + [self.process(_[1]) for _ in self.process(match[1]) or []]
+		a = self.defaultProcess(match[0])
+		b = self.defaultProcess(match[1])
+		return [self.defaultProcess(match[0])] + [_[1] for _ in b or []]
 
 	def onArguments( self, match ):
 		m0 = self.process(match[0])
@@ -581,8 +586,11 @@ class Processor(AbstractProcessor):
 		return (type, filter, name, parameters)
 
 	def onMacroInvocation( self, match, name, arguments ):
+		if self._mode == "macro":
+			self._macro.append(lambda: self.onMacroInvocation(match, name, arguments))
+			return None
 		if name not in self._macros:
-			raise Exception("Macro not defined: {0}".format(name))
+			raise Exception("Macro not defined: {0}, got {1}".format(name, self._macros.keys()))
 		params    = self._macros[name][0] or []
 		scope     = {}
 		arguments = arguments or []
@@ -590,9 +598,11 @@ class Processor(AbstractProcessor):
 		for i,a in enumerate(arguments):
 			scope[params[i]] = ["V", a]
 		self.variables.append(scope)
+		self._evaluated.append({})
 		for line in self._macros[name][1]:
 			line()
 		self.variables.pop()
+		self._evaluated.pop()
 
 	def onNumber( self, match, value, unit ):
 		value = float(value) if "." in value else int(value)
@@ -601,6 +611,9 @@ class Processor(AbstractProcessor):
 		return (value, unit)
 
 	def onDeclaration( self, match, decorator, name, value ):
+		if self._mode == "macro":
+			self._macro.append(lambda: self.onDeclaration(match, decorator, name, value))
+			return None
 		if not decorator:
 			name = name
 			self.variables[-1][name] = value
@@ -640,8 +653,13 @@ class Processor(AbstractProcessor):
 			return self._write("{0}: {1}{2};".format(name, " ".join(evalues), suffix), indent=1)
 
 	def onBlock( self, match, indent ):
-		self._mode = None
-		if self._footer:
+		if indent == 0:
+			self._mode   = None
+		elif self._mode == "macro":
+			self._macro.append(lambda: self.onBlock(match, indent + self.indent))
+			return None
+		self.indent = indent
+		if self._footer and self._mode == None:
 			self._write(self._footer)
 			self._footer = None
 		while len(self.scopes) > indent:
@@ -649,7 +667,12 @@ class Processor(AbstractProcessor):
 		self.process(match["selector"])
 		self.process(match["code"])
 
-	def onSpecialBlock( self, match, type ):
+	def onSpecialBlock( self, match, type, indent=None):
+		if indent == 0:
+			self._mode  = None
+		elif self._mode == "macro":
+			# self._macro.append(lambda: self.onSpecialBlock(indent, match, type))
+			return None
 		type, filter, name, params = type
 		if type == "@macro":
 			self._mode   = "macro"
