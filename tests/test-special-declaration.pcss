@@ -1,0 +1,32 @@
+@keyframes animation1:
+	from:
+		background: red
+	to:
+		background: yellow
+
+// Keyframes with %
+// Should be rendered as...
+// @keyframes identifier {
+//   0% { top: 0; }
+//   50% { top: 30px; left: 20px; }
+//   50% { top: 10px; }
+//   100% { top: 0; }
+// }
+@keyframes animation2
+	0%:
+		background: red
+	100%:
+		background: yellow
+
+@media[screen and (max-width: 300px)]
+	body:
+		background-color: lightblue
+
+// @font-face {
+//  font-family: MyHelvetica;
+//  src: local("Helvetica Neue Bold"),
+//       local("HelveticaNeue-Bold"),
+//       url(MgOpenModernaBold.ttf);
+//  font-weight: bold;
+@font-face
+	font-family: asdas

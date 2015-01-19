@@ -153,9 +153,8 @@ def grammar(g=None):
 
 	g.rule      ("Invocation",   g.arule(s.DOT,     s.METHOD_NAME).optional()._as("method"), s.LP, s.Arguments.optional()._as("arguments"), s.RP)
 	g.rule      ("InfixOperation", s.INFIX_OPERATOR, s.Expression)
-	g.rule      ("Qualifier",    s.SPACE, s.Expression._as("expression"))
 	# TODO: Might be better to use COMMA as a suffix to chain expressions
-	s.Suffixes.set(s.InfixOperation, s.Invocation, s.Qualifier)
+	s.Suffixes.set(s.InfixOperation, s.Invocation)
 
 	# =========================================================================
 	# LINES (BODY)
@@ -169,7 +168,8 @@ def grammar(g=None):
 	# OPERATIONS
 	# =========================================================================
 
-	g.rule      ("Assignment",       s.CSS_PROPERTY._as("name"), s.COLON, s.ExpressionList._as("values"), s.IMPORTANT.optional()._as("important"), s.SEMICOLON.optional())
+	g.rule      ("Assignment",       s.CSS_PROPERTY._as("name"), s.COLON, s.ExpressionList.oneOrMore()._as("values"), s.IMPORTANT.optional()._as("important"), s.SEMICOLON.optional())
+	#g.rule      ("Assignment",       s.CSS_PROPERTY._as("name"), s.COLON, s.Expression.oneOrMore()._as("values"), s.IMPORTANT.optional()._as("important"), s.SEMICOLON.optional())
 	g.rule      ("MacroInvocation",  s.NAME._as("name"),   s.LP, s.Arguments.optional()._as("arguments"), s.RP)
 
 	# =========================================================================
@@ -351,6 +351,8 @@ class Processor(AbstractProcessor):
 		- operations are encoded as `('O', operator, lvalue, rvalue)`
 		- literals are encoded as `('c', string)`
 		"""
+		if isinstance(e,list) and not isinstance(e[0], str):
+			return [[self.evaluate(_, unit, name, resolve, prefix) for _ in e], "l"]
 		if e[0] == "L":
 			return [[self.evaluate(_, unit, name, resolve, prefix) for _ in e[1]], "L"]
 		elif e[0] == "V":
@@ -488,11 +490,6 @@ class Processor(AbstractProcessor):
 		op   = self.process(match[0])
 		expr = self.process(match[1])
 		return ["O", op, None, expr]
-
-	def onQualifier( self, match, expression ):
-		print "QUALIFIER", expression
-		return ["L", expression]
-		return expression
 
 	def onSuffixes( self, match ):
 		return self.process(match.group())
@@ -660,7 +657,6 @@ class Processor(AbstractProcessor):
 			self._footer = "}\n"
 		suffix = "!important" if important else ""
 		self._property = name
-		print "VALUES", values
 		try:
 			evalues = [self._valueAsString(self.evaluate(_, name=name)) for _ in values]
 		except ProcessingException as e:
@@ -804,6 +800,8 @@ class Processor(AbstractProcessor):
 		v, u = value ; u = u or ""
 		if   u == "L":
 			return ", ".join([self._valueAsString(_) for _ in v])
+		elif u == "l":
+			return " ".join([self._valueAsString(_) for _ in v])
 		elif u == "%":
 			v = 100.0 * v
 			d = int(v)
