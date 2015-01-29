@@ -6,7 +6,7 @@
 # License           : BSD License
 # -----------------------------------------------------------------------------
 # Creation date     : 14-Jul-2013
-# Last modification : 19-Jan-2015
+# Last modification : 29-Jan-2015
 # -----------------------------------------------------------------------------
 
 import re, os, sys, argparse, json
@@ -17,7 +17,7 @@ try:
 except ImportError:
 	reporter = None
 
-VERSION = "0.1.0"
+VERSION = "0.1.1"
 LICENSE = "http://ffctn.com/doc/licenses/bsd"
 
 __doc__ = """
