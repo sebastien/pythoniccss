@@ -112,6 +112,7 @@ def grammar(g=None):
 	g.token   ("COLOR_NAME",       "[a-z][a-z0-9\-]*")
 	g.token   ("COLOR_HEX",        "\#([A-Fa-f0-9][A-Fa-f0-9]?[A-Fa-f0-9]?[A-Fa-f0-9]?[A-Fa-f0-9]?[A-Fa-f0-9]?([A-Fa-f0-9][A-Fa-f0-9])?)")
 	g.token   ("COLOR_RGB",        "rgba?\((\s*\d+\s*,\s*\d+\s*,\s*\d+\s*(,\s*\d+(\.\d+)?\s*)?)\)")
+	g.token   ("URL",              "url\((\"[^\"]*\"|\'[^\']*\'|[^\)]*)\)")
 	g.token   ("CSS_PROPERTY",    "[\-a-z][\-a-z0-9]*")
 	g.token   ("SPECIAL_NAME",     "@[A-Za-z][A-Za-z0-9\_\-]*")
 	g.token   ("SPECIAL_FILTER",   "\[[^\]]+\]")
@@ -140,7 +141,7 @@ def grammar(g=None):
 	g.group     ("Suffixes")
 	g.rule      ("Number",           s.NUMBER._as("value"), s.UNIT.optional()._as("unit"))
 	g.group     ("String",           s.STRING_SQ, s.STRING_DQ, s.STRING_UQ)
-	g.group     ("Value",            s.Number, s.COLOR_HEX, s.COLOR_RGB, s.REFERENCE, s.String)
+	g.group     ("Value",            s.Number, s.COLOR_HEX, s.COLOR_RGB, s.URL, s.REFERENCE, s.String)
 	g.rule      ("Parameters",       s.VARIABLE_NAME, g.arule(s.COMMA, s.VARIABLE_NAME).zeroOrMore())
 	g.rule      ("Arguments",        s.Value, g.arule(s.COMMA, s.Value).zeroOrMore())
 	g.rule      ("Expression")
@@ -424,6 +425,9 @@ class Processor(AbstractProcessor):
 	# ==========================================================================
 	# GRAMMAR RULES
 	# ==========================================================================
+
+	def onURL(self, match ):
+		return (match.group(0), "S")
 
 	def onCOLOR_HEX(self, match ):
 		c = (match.group(1))
@@ -880,7 +884,7 @@ def run(args):
 	if not args.files:
 		sys.stderr.write(USAGE + "\n")
 	output = sys.stdout
-	# if args.verbose: getGrammar().setVerbose()
+	if args.verbose: getGrammar().setVerbose()
 	if args.output: output = open(args.output, "w")
 	for a in args.files:
 		if reporter: reporter.info("Processing: {0}".format(a))
