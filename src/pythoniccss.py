@@ -333,6 +333,7 @@ class Processor(AbstractProcessor):
 		self.units      = {}
 		self._evaluated = [{}]
 		self.scopes     = []
+		self._blocks    = []
 		self._header    = None
 		self._footer    = None
 		self._mode      = None
@@ -465,6 +466,12 @@ class Processor(AbstractProcessor):
 
 	def onSTRING_UQ(self, match ):
 		return match.group()
+
+	def onPERCENTAGE(self, match ):
+		if self._mode == "macro":
+			self._macro.append(lambda: self.onPERCENTAGE(match))
+			return None
+		self._write(match.group() + " {")
 
 	def onCheckIndent(self, match, tabs):
 		return len(tabs) if tabs else 0
@@ -685,9 +692,7 @@ class Processor(AbstractProcessor):
 			self._macro.append(lambda: self.onBlock(match, indent + self.indent))
 			return None
 		self.indent = indent
-		if self._footer and self._mode == None:
-			self._write(self._footer)
-			self._footer = None
+		self._writeFooter()
 		while len(self.scopes) > indent:
 			self.scopes.pop()
 		self.process(match["selector"])
@@ -709,9 +714,7 @@ class Processor(AbstractProcessor):
 		elif self._mode == "macro":
 			self._macro.append(lambda: self.onSpecialBlock(indent, match, type))
 			return None
-		if self._footer and self._mode == None:
-			self._write(self._footer)
-			self._footer = None
+		self._writeFooter()
 		type, filter, name, params = type
 		self._write("{0}{1} {2} {3} {{".format(type, filter or "", name or "", ", ".join(params) if params else  ""))
 		self._mode = None
@@ -725,9 +728,15 @@ class Processor(AbstractProcessor):
 			self._footer = None
 		return result
 
+
 	# ==========================================================================
 	# OUTPUT
 	# ==========================================================================
+
+	def _writeFooter( self ):
+		if self._footer and self._mode == None:
+			self._write(self._footer)
+			self._footer = None
 
 	def _write( self, line=None, indent=0 ):
 		line = "  " * indent + line + "\n"

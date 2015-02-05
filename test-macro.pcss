@@ -1,0 +1,13 @@
+
+COLOR_WOODBARK=red
+
+@macro triangle width, color
+	width:  0
+	height: 0
+	border-style: solid
+	border-width: 0 $width $width $width 
+	border-color: transparent transparent $color transparent
+
+.tooltip:
+	.tip:
+		triangle(1em,$COLOR_WOODBARK)
