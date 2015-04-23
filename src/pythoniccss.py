@@ -6,7 +6,7 @@
 # License           : BSD License
 # -----------------------------------------------------------------------------
 # Creation date     : 14-Jul-2013
-# Last modification : 29-Jan-2015
+# Last modification : 20-Apr-2015
 # -----------------------------------------------------------------------------
 
 import re, os, sys, argparse, json
@@ -241,6 +241,8 @@ class Processor(AbstractProcessor):
 	PREFIXABLE_PROPERTIES = (
 		"animation",
 		"border-radius",
+		"box",
+		"box-align",
 		"box-shadow",
 		"background-size",
 		"column-width",
@@ -260,6 +262,11 @@ class Processor(AbstractProcessor):
 		"image-rendering",
 		"user-select",
 	)
+
+	PREFIXABLE_PROPERTIES_OVERRIDES = {
+		"-ms-box"       : "-ms-flexbox",
+		"-ms-box-align" : "-ms-flex-align",
+	}
 
 	PREFIXABLE_VALUES_PROPERTIES = (
 		"transition",
@@ -375,8 +382,11 @@ class Processor(AbstractProcessor):
 				return (self.ColorFromName(v[0]) or v[0], "C")
 			elif v[1] == "S":
 				if name in self.PREFIXABLE_VALUES_PROPERTIES and prefix and v[0] in self.PREFIXABLE_PROPERTIES:
-					# We're in a property that refernces prexialbe properties
-					return (prefix + v[0], v[1])
+					# FIXME: Not sure
+					# We're in a property that references prexiable properties
+					p = prefix + v[0]
+					p = self.PREFIXABLE_PROPERTIES_OVERRIDES.get(p) or p
+					return (p, v[1])
 				else:
 					return v
 			else:
