@@ -6,10 +6,10 @@
 # License           : BSD License
 # -----------------------------------------------------------------------------
 # Creation date     : 14-Jul-2013
-# Last modification : 20-Apr-2015
+# Last modification : 12-Jun-2015
 # -----------------------------------------------------------------------------
 
-import re, os, sys, argparse, json
+import re, os, sys, argparse, json, copy, StringIO
 from   libparsing import Grammar, Token, Word, Rule, Group, Condition, Procedure, Reference, AbstractProcessor, TreeWriter
 
 try:
@@ -99,7 +99,7 @@ def grammar(g=None):
 	g.token   ("INFIX_OPERATOR",   "[\-\+\*\/]")
 
 	g.token   ("NODE",             "\*|([a-zA-Z][\-_a-zA-Z0-9\-]*)")
-	g.token   ("NODE_CLASS",       "\.[_a-zA-Z][_a-zA-Z0-9_\-]*")
+	g.token   ("NODE_CLASS",       "\.[\-_a-zA-Z][_a-zA-Z0-9_\-]*")
 	g.token   ("NODE_ID",          "#[_a-zA-Z][_a-zA-Z0-9\-]*")
 
 	# SEE: http://www.w3schools.com/cssref/css_units.asp
@@ -248,6 +248,7 @@ class Processor(AbstractProcessor):
 		"column-width",
 		"column-gap",
 		"column-count",
+		"column-span",
 		"filter",
 		"transition-property",
 		"transition-duration",
@@ -261,6 +262,7 @@ class Processor(AbstractProcessor):
 		"backface-visibility",
 		"image-rendering",
 		"user-select",
+		"white-space-collapsing",
 	)
 
 	PREFIXABLE_PROPERTIES_OVERRIDES = {
@@ -806,7 +808,66 @@ class Processor(AbstractProcessor):
 	def _scopeAsString( self, scope ):
 		return "".join(_ or "" for _ in scope)
 
+	def _copySelector( self, selector ):
+		"""A relatively bad way to copy the CFFI ParsingResult"""
+		# FIXME: This is slightly brittle, I think selection
+		# might be a parsing result from CFFI. It's not
+		# ideal, but it works.
+		ns = []
+		for i in range(len(selector)): ns.append(selector[i])
+		return ns
+
+	def _selectionProcessBEM( self, selection ):
+		"""Processes the given selection, extracting BEM classes
+		from the selectors."""
+		bem_prefixes = []
+		# First step, we extract the BEM classes (-XXX-) from
+		# the selectors.
+		if not selection: return selection
+		new_selection = []
+		for s in selection:
+			new_classes  = []
+			if len(s) >= 3:
+				# We filter out BEM prefixes from the class list
+				for c in s[2].split(".") if len(s) >= 3 else ():
+					if c and (c[0] == "-" or c[-1] == "-"):
+						bem_prefixes.append(c)
+					else:
+						new_classes.append(c)
+				ns    = self._copySelector(s)
+				ns[2] = ".".join(new_classes)
+				new_selection.append(ns)
+			else:
+				new_selection.append(s)
+		# Now that we have the BEM prefixes, we reverse them.
+		if bem_prefixes:
+			new_selection[-1] = self._copySelector(new_selection[-1])
+			i = len(bem_prefixes) - 1
+			r = []
+			while i >= 0:
+				p = bem_prefixes[i]
+				# This is an edge case where we don't have
+				# a closing BEM class, ie.
+				# `one- -two- -three-`
+				# instead of
+				# `one- -two- -three`
+				# (note the absence of a trailing dash)
+				if not r and p[-1] == "-":
+					break
+				r.insert(0, p[1:] if p[0] == "-" else p)
+				if p[0] == "-":
+					i -=1
+				else:
+					break
+			bem_class = "." + "".join(r)
+			cur_class = new_selection[-1][2] or ""
+			new_selection[-1][2] = repr(cur_class + bem_class)
+		# The new selection contains the aggregated BEM
+		# classes.
+		return new_selection
+
 	def _selectionAsString( self, selection ):
+		selection = self._selectionProcessBEM(selection)
 		return "".join(self._scopeAsString(_) if isinstance(_, list) else _ for _ in selection if _) if selection else ""
 
 	def _stringEscapeFix( self, text ):
@@ -818,6 +879,8 @@ class Processor(AbstractProcessor):
 			return text
 
 	def _valueAsString( self, value ):
+		"""Converts a value `(value:any, type:char)` into its CSS string
+		representation."""
 		v, u = value ; u = u or ""
 		if   u == "L":
 			return ", ".join([self._valueAsString(_) for _ in v])
@@ -883,6 +946,22 @@ def getGrammar():
 def parse(path):
 	return getGrammar().parsePath(path)
 
+def parseString(text):
+	return getGrammar().parseString(text)
+
+def convert(path):
+	match = parse(path)
+	if match.status() == "S":
+		s = StringIO.StringIO()
+		p = Processor(output=s)
+		p.process(match)
+		s.seek(0)
+		v = s.getvalue()
+		s.close()
+		return v
+	else:
+		raise Exception("Parsing of {0} failed at line:{1}\n> {2}".format("string", match.line(), match.textaround()))
+
 def run(args):
 	"""Processes the command line arguments."""
 	USAGE = "pythoniccss FILE..."
@@ -922,6 +1001,7 @@ def run(args):
 				raise Exception("Parsing of {0} failed at line:{1}\n> {2}".format(a, match.line(), match.textaround()))
 	if args.output:
 		output.close()
+
 if __name__ == "__main__":
 	import sys
 	run(sys.argv[1:])
