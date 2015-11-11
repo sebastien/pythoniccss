@@ -861,7 +861,7 @@ class Processor(AbstractProcessor):
 					break
 			bem_class = "." + "".join(r)
 			cur_class = new_selection[-1][2] or ""
-			new_selection[-1][2] = repr(cur_class + bem_class)
+			new_selection[-1][2] = cur_class + bem_class
 		# The new selection contains the aggregated BEM
 		# classes.
 		return new_selection
