@@ -827,9 +827,9 @@ class Processor(AbstractProcessor):
 		new_selection = []
 		for s in selection:
 			new_classes  = []
-			if len(s) >= 3:
+			if s and len(s) >= 3:
 				# We filter out BEM prefixes from the class list
-				for c in s[2].split(".") if len(s) >= 3 else ():
+				for c in (s[2] or "").split("."):
 					if c and (c[0] == "-" or c[-1] == "-"):
 						bem_prefixes.append(c)
 					else:
