@@ -6,7 +6,7 @@
 # License           : BSD License
 # -----------------------------------------------------------------------------
 # Creation date     : 14-Jul-2013
-# Last modification : 12-Jun-2015
+# Last modification : 08-Jun-2015
 # -----------------------------------------------------------------------------
 
 import re, os, sys, argparse, json, copy, StringIO
@@ -17,7 +17,7 @@ try:
 except ImportError:
 	reporter = None
 
-VERSION = "0.1.1"
+VERSION = "0.1.2"
 LICENSE = "http://ffctn.com/doc/licenses/bsd"
 
 __doc__ = """
@@ -164,6 +164,8 @@ def grammar(g=None):
 	g.rule      ("Comment",          s.COMMENT.oneOrMore(), s.EOL)
 	g.rule      ("Include",          s.INCLUDE, s.PATH,     s.EOL)
 	g.rule      ("Declaration",      s.SPECIAL_NAME.optional()._as("decorator"), s.VARIABLE_NAME._as("name"), s.EQUAL, s.ExpressionList._as("value"), s.EOL)
+	# FIXME: If we remove optional() from SPECIAL_NAME, we get a core dump...
+	g.rule      ("Directive",        s.SPECIAL_NAME.optional()._as("directive"), s.VARIABLE_NAME._as("value"), s.EOL)
 
 	# =========================================================================
 	# OPERATIONS
@@ -195,7 +197,7 @@ def grammar(g=None):
 	# AXIOM
 	# =========================================================================
 
-	g.group     ("Source",  g.agroup(s.Comment, s.Block, s.MacroBlock, s.SpecialBlock, s.Declaration, s.Include).zeroOrMore())
+	g.group     ("Source",  g.agroup(s.Comment, s.Block, s.MacroBlock, s.Directive, s.SpecialBlock, s.Declaration, s.Include).zeroOrMore())
 	g.skip(s.SPACE)
 	g.axiom(s.Source)
 	return g
@@ -340,6 +342,7 @@ class Processor(AbstractProcessor):
 		self.indent     = 0
 		self.variables  = [{}]
 		self.units      = {}
+		self.module     = None
 		self._evaluated = [{}]
 		self.scopes     = []
 		self._blocks    = []
@@ -664,6 +667,15 @@ class Processor(AbstractProcessor):
 			self.variables[-1][name] = value
 		elif decorator == "@unit":
 			self.units[name] = value
+		# elif decorator == "@module":
+		# 	self.module      = value
+		else:
+			raise NotImplementedError
+		return None
+
+	def onDirective( self, match, directive, value ):
+		if directive == "@module":
+			self.module  = value
 		else:
 			raise NotImplementedError
 		return None
@@ -868,7 +880,11 @@ class Processor(AbstractProcessor):
 
 	def _selectionAsString( self, selection ):
 		selection = self._selectionProcessBEM(selection)
-		return "".join(self._scopeAsString(_) if isinstance(_, list) else _ for _ in selection if _) if selection else ""
+		res =  "".join(self._scopeAsString(_) if isinstance(_, list) else _ for _ in selection if _) if selection else ""
+		if self.module:
+			return ".use-{0} {1}".format(self.module, res)
+		else:
+			return res
 
 	def _stringEscapeFix( self, text ):
 		# NOTE: CleverCSS had some trouble with the empty content string, which
