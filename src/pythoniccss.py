@@ -34,23 +34,26 @@ G = None
 #
 # -----------------------------------------------------------------------------
 
-def doIndent(context):
+def doIndent(context, match):
 	"""Increases the indent requirement in the parsing context"""
+	return True
 	v = context.getVariables().getParent ()
 	i = v.get("requiredIndent") or 0
 	v.set("requiredIndent", i + 1)
 	return True
 
-def doCheckIndent(context):
+def doCheckIndent(context, match):
 	"""Ensures that the indent requirement is matched."""
+	return True
 	v          = context.getVariables()
 	tab_match  = context.getVariables().get("tabs")
 	tab_indent = len(tab_match.group())
 	req_indent = v.get("requiredIndent") or 0
 	return tab_indent == req_indent
 
-def doDedent(context):
+def doDedent(context, match):
 	"""Decreases the indent requirement in the parsing context"""
+	return True
 	v = context.getVariables().getParent ()
 	i = v.get("requiredIndent") or 0
 	v.set("requiredIndent", i - 1)
@@ -956,7 +959,6 @@ class PCSSProcessor(Processor):
 def getGrammar():
 	global G
 	if not G: G = grammar()
-	# G.setVerbose(False)
 	return G
 
 def parse(path):
@@ -967,7 +969,7 @@ def parseString(text):
 
 def convert(path):
 	match = parse(path)
-	if match.status() == "S":
+	if match.status == "S":
 		s = StringIO.StringIO()
 		p = Processor(output=s)
 		p.process(match)
@@ -976,7 +978,7 @@ def convert(path):
 		s.close()
 		return v
 	else:
-		raise Exception("Parsing of {0} failed at line:{1}\n> {2}".format("string", match.line(), match.textaround()))
+		raise Exception("Parsing of {0} failed at line:{1}\n> {2}".format("string", match.line, match.textAround()))
 
 def run(args):
 	"""Processes the command line arguments."""
@@ -998,7 +1000,8 @@ def run(args):
 	if not args.files:
 		sys.stderr.write(USAGE + "\n")
 	output = sys.stdout
-	if args.verbose: getGrammar().setVerbose()
+	if args.verbose:
+		getGrammar().isVerbose = True
 	if args.output: output = open(args.output, "w")
 	for a in args.files:
 		if reporter: reporter.info("Processing: {0}".format(a))
@@ -1008,13 +1011,13 @@ def run(args):
 			stats = match.stats()
 			stats.report(getGrammar(), output)
 		else:
-			if match.status() == "S":
+			if match.status == "S":
 				p.process(match)
 			else:
-				msg = "Parsing of {0} failed at line:{1}".format(a, match.line())
+				msg = "Parsing of `{0}` failed at line:{1}".format(a, match.line)
 				reporter.error(msg)
-				reporter.error(match.textaround())
-				raise Exception("Parsing of {0} failed at line:{1}\n> {2}".format(a, match.line(), match.textaround()))
+				reporter.error(match.textAround())
+				raise Exception("Parsing of `{0}` failed at line:{1}\n> {2}".format(a, match.line, match.textAround()))
 	if args.output:
 		output.close()
 
