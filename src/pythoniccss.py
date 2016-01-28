@@ -6,18 +6,18 @@
 # License           : BSD License
 # -----------------------------------------------------------------------------
 # Creation date     : 14-Jul-2013
-# Last modification : 08-Jun-2015
+# Last modification : 28-Jan-2016
 # -----------------------------------------------------------------------------
 
 import re, os, sys, argparse, json, copy, StringIO
-from   libparsing import Grammar, Token, Word, Rule, Group, Condition, Procedure, Reference, AbstractProcessor, TreeWriter
+from   libparsing import Grammar, Token, Word, Rule, Group, Condition, Procedure, Reference, Processor, TreeWriter
 
 try:
 	import reporter
 except ImportError:
 	reporter = None
 
-VERSION = "0.1.2"
+VERSION = "0.2.0"
 LICENSE = "http://ffctn.com/doc/licenses/bsd"
 
 __doc__ = """
@@ -65,7 +65,7 @@ def doDedent(context):
 def grammar(g=None):
 	"""Definition of the grammar for the PythonicCSS language, using
 	the parsing module parsing elements."""
-	if not g:g=Grammar("PythonicCSS", verbose=False)
+	if not g:g=Grammar("PythonicCSS")
 	s = g.symbols
 	g.token   ("SPACE",            "[ ]+")
 	g.token   ("TABS",             "\t*")
@@ -123,7 +123,7 @@ def grammar(g=None):
 
 	g.procedure ("Indent",           doIndent)
 	g.procedure ("Dedent",           doDedent)
-	g.rule      ("CheckIndent",      s.TABS._as("tabs"), g.acondition(doCheckIndent)).disableMemoize ()
+	g.rule      ("CheckIndent",      s.TABS._as("tabs"), g.acondition(doCheckIndent))
 
 	g.rule      ("Attribute",        s.ATTRIBUTE._as("name"), g.arule(s.EQUAL, s.ATTRIBUTE_VALUE).optional()._as("value"))
 	g.rule      ("Attributes",       s.LSBRACKET, s.Attribute._as("head"), g.arule(s.COMMA, s.Attribute).zeroOrMore()._as("tail"), s.RSBRACKET)
@@ -183,28 +183,28 @@ def grammar(g=None):
 	# of the failures. A good idea would be to append the indentation value to
 	# the caching key.
 	# .processMemoizationKey(lambda _,c:_ + ":" + c.getVariables().get("requiredIndent", 0))
-	g.rule("Statement",     s.CheckIndent._as("indent"), g.agroup(s.Assignment, s.MacroInvocation, s.COMMENT), s.EOL).disableFailMemoize()
-	g.rule("Block",         s.CheckIndent._as("indent"), g.agroup(s.PERCENTAGE, s.SelectionList)._as("selector"), s.COLON.optional(), s.EOL, s.Indent, s.Statement.zeroOrMore()._as("code"), s.Dedent).disableFailMemoize()
+	g.rule("Statement",     s.CheckIndent._as("indent"), g.agroup(s.Assignment, s.MacroInvocation, s.COMMENT), s.EOL)
+	g.rule("Block",         s.CheckIndent._as("indent"), g.agroup(s.PERCENTAGE, s.SelectionList)._as("selector"), s.COLON.optional(), s.EOL, s.Indent, s.Statement.zeroOrMore()._as("code"), s.Dedent)
 
 	g.rule    ("MacroDeclaration", s.MACRO, s.NAME._as("name"), s.Parameters.optional()._as("parameters"), s.COLON.optional())
-	g.rule    ("MacroBlock",       s.CheckIndent._as("indent"), s.MacroDeclaration._as("type"), s.EOL, s.Indent, s.Statement.zeroOrMore()._as("code"), s.Dedent).disableFailMemoize()
+	g.rule    ("MacroBlock",       s.CheckIndent._as("indent"), s.MacroDeclaration._as("type"), s.EOL, s.Indent, s.Statement.zeroOrMore()._as("code"), s.Dedent)
 
 	# FIXME: The special declaration is a bit broken... should work better
 	g.rule    ("SpecialDeclaration",   s.SPECIAL_NAME._as("type"), s.SPECIAL_FILTER.optional()._as("filter"),  s.NAME.optional()._as("name"), s.Parameters.optional()._as("parameters"), s.COLON.optional())
-	g.rule    ("SpecialBlock",         s.CheckIndent._as("indent"), s.SpecialDeclaration._as("type"), s.EOL, s.Indent, s.Statement.zeroOrMore()._as("code"), s.Dedent).disableFailMemoize()
+	g.rule    ("SpecialBlock",         s.CheckIndent._as("indent"), s.SpecialDeclaration._as("type"), s.EOL, s.Indent, s.Statement.zeroOrMore()._as("code"), s.Dedent)
 
 	# =========================================================================
 	# AXIOM
 	# =========================================================================
 
 	g.group     ("Source",  g.agroup(s.Comment, s.Block, s.MacroBlock, s.Directive, s.SpecialBlock, s.Declaration, s.Include).zeroOrMore())
-	g.skip(s.SPACE)
-	g.axiom(s.Source)
+	g.skip  = s.SPACE
+	g.axiom = s.Source
 	return g
 
 # -----------------------------------------------------------------------------
 #
-# PROCESSOR
+# PCSS PROCESSOR
 #
 # -----------------------------------------------------------------------------
 
@@ -221,7 +221,7 @@ class ProcessingException(Exception):
 			msg = "Line {0}, char {1}: {2}".format(l, c, msg)
 		return msg
 
-class Processor(AbstractProcessor):
+class PCSSProcessor(Processor):
 	"""Replaces some of the grammar's symbols processing functions. This is
 	the main code that converts the parsing's recognized data to the output
 	CSS. There is not really an intermediate AST (excepted for expressions),
@@ -332,7 +332,7 @@ class Processor(AbstractProcessor):
 			return cls.RGB[name.lower().strip()]
 
 	def __init__( self, grammar=None, output=sys.stdout ):
-		AbstractProcessor.__init__(self, grammar or getGrammar())
+		Processor.__init__(self, grammar or getGrammar())
 		self.reset()
 		self.output = output
 
@@ -993,7 +993,7 @@ def run(args):
 	oparser.add_argument("--output",  type=str,  dest="output", default=None)
 	# We create the parse and register the options
 	args = oparser.parse_args(args=args)
-	p   = Processor(output=sys.stdout)
+	p   = PCSSProcessor(output=sys.stdout)
 	# p = TreeWriter(output=sys.stdout)
 	if not args.files:
 		sys.stderr.write(USAGE + "\n")
