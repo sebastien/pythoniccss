@@ -36,7 +36,6 @@ G = None
 
 def doIndent(context, match):
 	"""Increases the indent requirement in the parsing context"""
-	return True
 	v = context.getVariables().getParent ()
 	i = v.get("requiredIndent") or 0
 	v.set("requiredIndent", i + 1)
@@ -44,7 +43,6 @@ def doIndent(context, match):
 
 def doCheckIndent(context, match):
 	"""Ensures that the indent requirement is matched."""
-	return True
 	v          = context.getVariables()
 	tab_match  = context.getVariables().get("tabs")
 	tab_indent = len(tab_match.group())
@@ -53,7 +51,6 @@ def doCheckIndent(context, match):
 
 def doDedent(context, match):
 	"""Decreases the indent requirement in the parsing context"""
-	return True
 	v = context.getVariables().getParent ()
 	i = v.get("requiredIndent") or 0
 	v.set("requiredIndent", i - 1)
