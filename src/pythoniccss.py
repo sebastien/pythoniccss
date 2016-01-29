@@ -36,6 +36,7 @@ G = None
 
 def doIndent(context, match):
 	"""Increases the indent requirement in the parsing context"""
+	return True
 	v = context.getVariables().getParent ()
 	i = v.get("requiredIndent") or 0
 	v.set("requiredIndent", i + 1)
@@ -43,6 +44,7 @@ def doIndent(context, match):
 
 def doCheckIndent(context, match):
 	"""Ensures that the indent requirement is matched."""
+	return True
 	v          = context.getVariables()
 	tab_match  = context.getVariables().get("tabs")
 	tab_indent = len(tab_match.group())
@@ -51,6 +53,7 @@ def doCheckIndent(context, match):
 
 def doDedent(context, match):
 	"""Decreases the indent requirement in the parsing context"""
+	return True
 	v = context.getVariables().getParent ()
 	i = v.get("requiredIndent") or 0
 	v.set("requiredIndent", i - 1)
@@ -199,7 +202,8 @@ def grammar(g=None):
 
 	g.group     ("Source",  g.agroup(s.Comment, s.Block, s.MacroBlock, s.Directive, s.SpecialBlock, s.Declaration, s.Include).zeroOrMore())
 	g.skip  = s.SPACE
-	g.axiom = s.Source
+	g.axiom = s.Statement
+	g.prepare()
 	return g
 
 # -----------------------------------------------------------------------------
@@ -529,8 +533,12 @@ class PCSSProcessor(Processor):
 		return result
 
 	def onExpression( self, match ):
+		print "*" * 10
+		print "MATCHES {0}".format(match[1])
+		print "*" * 10
 		prefix   = self.process(match[0])
 		suffixes = self.process(match[1])
+		print "XXXX", prefix, suffixes
 		res      = prefix
 		for suffix in suffixes or []:
 			if suffix[0] == "O":
