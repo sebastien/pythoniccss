@@ -9,7 +9,7 @@
 # Last modification : 28-Jan-2016
 # -----------------------------------------------------------------------------
 
-import re, os, sys, argparse, json, copy, StringIO
+import re, os, sys, argparse, json, copy, io
 from   libparsing import Grammar, Token, Word, Rule, Group, Condition, Procedure, Reference, Processor, TreeWriter
 
 try:
@@ -206,6 +206,7 @@ def grammar(g=None):
 	g.prepare()
 	return g
 
+
 # -----------------------------------------------------------------------------
 #
 # PCSS PROCESSOR
@@ -319,8 +320,11 @@ class PCSSProcessor(Processor):
 			colors = {}
 			# We extract the color names from X11's rgb file
 			# SEE: https://en.wikipedia.org/wiki/X11_color_names#Color_name_chart
-			with open("/usr/share/X11/rgb.txt") as f:
-				for line in f.readlines():
+			with file("/usr/share/X11/rgb.txt") as f:
+				# FIXME: Somehow, this creates a sefault
+				# for line in f.readlines():
+				# 	print (line)
+				for line in f.read().split("\n"):
 					if not line or line[0] == "!": continue
 					r = line[0:4]
 					g = line[4:8]
@@ -374,6 +378,7 @@ class PCSSProcessor(Processor):
 		if e[0] == "L":
 			return [[self.evaluate(_, unit, name, resolve, prefix) for _ in e[1]], "L"]
 		elif e[0] == "V":
+			assert isinstance(e, tuple) or isinstance(e, list) and len(e) == 2, "evaluate: value expected to be `(V, (value, type))`, got {1}".format(e)
 			v = e[1]
 			u = v[1]
 			if u in self.units:
@@ -490,17 +495,18 @@ class PCSSProcessor(Processor):
 		if self._mode == "macro":
 			self._macro.append(lambda: self.onPERCENTAGE(match))
 			return None
-		self._write(match.group() + " {")
+		self._write(match[0] + " {")
 
 	def onCheckIndent(self, match, tabs):
 		return len(tabs) if tabs else 0
 
 	def onString( self, match ):
-		return (self.process(match.group()), "S")
+		return (self.process(match.value), "S")
 
 	def onValue( self, match ):
-		value = self.process(match.group())
-		return ["V", value]
+		value = ["V", self.process(match[0])]
+		assert isinstance(value, tuple) or isinstance(value, list) and len(value) == 2, "onValue: value expected to be `(V, (value, type))`, got {1} from {2}".format(value, match)
+		return value
 
 	def onParameters( self, match ):
 		a = self.defaultProcess(match[0])
@@ -533,12 +539,8 @@ class PCSSProcessor(Processor):
 		return result
 
 	def onExpression( self, match ):
-		print "*" * 10
-		print "MATCHES {0}".format(match[1])
-		print "*" * 10
 		prefix   = self.process(match[0])
 		suffixes = self.process(match[1])
-		print "XXXX", prefix, suffixes
 		res      = prefix
 		for suffix in suffixes or []:
 			if suffix[0] == "O":
@@ -905,6 +907,7 @@ class PCSSProcessor(Processor):
 	def _valueAsString( self, value ):
 		"""Converts a value `(value:any, type:char)` into its CSS string
 		representation."""
+		assert isinstance(value, list) or isinstance(value, tuple) and len(value) == 2, "{0}: Expected `(type, value)`, got {1}".format(self._valueAsString, repr(value))
 		v, u = value ; u = u or ""
 		if   u == "L":
 			return ", ".join([self._valueAsString(_) for _ in v])
@@ -945,13 +948,13 @@ class PCSSProcessor(Processor):
 			if self._property != "content" and self.RE_UNQUOTED.match(v):
 				return "{0:s}".format(v,u)
 			else:
-				return "{0:s}".format(json.dumps(v).replace("\u", "\\"),u)
+				return "{0:s}".format(json.dumps(v).replace("\\u", "\\"),u)
 		elif type(v) == unicode:
 			# FIXME: Proper escaping
 			if self._property != "content" and self.RE_UNQUOTED.match(v):
 				return "{0:s}".format(v,u)
 			else:
-				return "{0:s}".format(json.dumps(v).replace("\u", "\\"),u)
+				return "{0:s}".format(json.dumps(v).replace("\\u", "\\"),u)
 		else:
 			raise ProcessingException("Value string conversion not implemented: {0}".format(value))
 
@@ -1029,4 +1032,5 @@ def run(args):
 if __name__ == "__main__":
 	import sys
 	run(sys.argv[1:])
+
 # EOF
