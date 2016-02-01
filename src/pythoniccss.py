@@ -691,6 +691,7 @@ class PCSSProcessor(Processor):
 		return None
 
 	def onAssignment( self, match, name, values, important ):
+		values = values or ()
 		if self._mode == "macro":
 			self._macro.append(lambda: self.onAssignment(match, name, values, important))
 			return None
