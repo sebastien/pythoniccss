@@ -10,7 +10,7 @@
 # -----------------------------------------------------------------------------
 
 import re, os, sys, argparse, json, copy, io
-from   libparsing import Grammar, Token, Word, Rule, Group, Condition, Procedure, Reference, Processor, TreeWriter
+from   libparsing import Grammar, Token, Word, Rule, Group, Condition, Procedure, Reference, Processor, TreeWriter, HandlerException
 
 try:
 	import reporter
@@ -68,7 +68,7 @@ def doDedent(context, match):
 def grammar(g=None):
 	"""Definition of the grammar for the PythonicCSS language, using
 	the parsing module parsing elements."""
-	if not g:g=Grammar("PythonicCSS")
+	if not g:g=Grammar("PythonicCSS", isVerbose=False)
 	s = g.symbols
 	g.token   ("SPACE",            "[ ]+")
 	g.token   ("TABS",             "\t*")
@@ -112,7 +112,7 @@ def grammar(g=None):
 	g.token   ("METHOD_NAME",      "[\w_][\w\d_]*")
 	g.token   ("NAME",             "[\w_][\w\d_]*")
 	g.token   ("REFERENCE",        "\$([\w_][\w\d_]*)")
-	g.token   ("COLOR_NAME",       "[a-z][a-z0-9\-]*")
+	#g.token   ("COLOR_NAME",       "[a-z][a-z0-9\-]*")
 	g.token   ("COLOR_HEX",        "\#([A-Fa-f0-9][A-Fa-f0-9]?[A-Fa-f0-9]?[A-Fa-f0-9]?[A-Fa-f0-9]?[A-Fa-f0-9]?([A-Fa-f0-9][A-Fa-f0-9])?)")
 	g.token   ("COLOR_RGB",        "rgba?\((\s*\d+\s*,\s*\d+\s*,\s*\d+\s*(,\s*\d+(\.\d+)?\s*)?)\)")
 	g.token   ("URL",              "url\((\"[^\"]*\"|\'[^\']*\'|[^\)]*)\)")
@@ -202,7 +202,7 @@ def grammar(g=None):
 
 	g.group     ("Source",  g.agroup(s.Comment, s.Block, s.MacroBlock, s.Directive, s.SpecialBlock, s.Declaration, s.Include).zeroOrMore())
 	g.skip  = s.SPACE
-	g.axiom = s.Statement
+	g.axiom = s.Source
 	g.prepare()
 	return g
 
@@ -552,7 +552,7 @@ class PCSSProcessor(Processor):
 		if res[0] == "O" and res[3][0] == "O":
 			# We're in this situation
 			# ['O', '*', ['V', (4, None)], ['O', '+', ['V', (10, None)], ['V', (5, None)]]]
-			# while we ant
+			# while we want
 			# ['O', '+', ['O', '*', ['V', (4, None)], ['V', (10, None)]], ['V', (5, None)]]]
 			op  = res[1]
 			rop = res[3][1]
@@ -577,11 +577,14 @@ class PCSSProcessor(Processor):
 		result = "".join([head] + (tail or []))
 		return  result
 
+	def onSELECTOR_SUFFIX( self, match ):
+		print "SUFFIX", match.text(), match.range()
+
 	def onSelector( self, match, scope, nid,  nclass, attributes, suffix ):
 		"""Selectors are returned as tuples `(scope, id, class, attributes, suffix)`.
 		We need to keep this structure as we need to be able to expand the `&`
 		reference."""
-		scope      = scope[0] if scope else ""
+		scope      = scope      or   ""
 		nid        = nid if nid else ""
 		suffix     = "".join(suffix) if suffix else ""
 		nclass     = "".join(nclass) if nclass else ""
@@ -603,8 +606,9 @@ class PCSSProcessor(Processor):
 		>   ---SELECTOR------------   OP   --SELECTOR---------------
 		"""
 		if not head and not tail: return None
+		assert not head or len(head) == 5
 		if head:
-			res = head
+			res = [head]
 			if tail:
 				for narrower in tail:
 					if not narrower: continue
@@ -1021,7 +1025,12 @@ def run(args):
 			stats.report(getGrammar(), output)
 		else:
 			if match.status == "S":
-				p.process(match)
+				try:
+					p.process(match)
+				except HandlerException as e:
+					reporter.error(e)
+					for _ in e.context:
+						reporter.warn(_)
 			else:
 				msg = "Parsing of `{0}` failed at line:{1}".format(a, match.line)
 				reporter.error(msg)
