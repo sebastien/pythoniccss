@@ -73,7 +73,6 @@ def grammar(g=None):
 	g.token   ("SPACE",            "[ ]+")
 	g.token   ("TABS",             "\t*")
 	g.token   ("COMMENT",          "[ \t]*\//[^\n]*")
-	g.token   ("EQUAL",             "=")
 	g.token   ("EOL",              "[ ]*\n(\s*\n)*")
 	g.token   ("NUMBER",           "-?(0x)?[0-9]+(\.[0-9]+)?")
 	g.token   ("ATTRIBUTE",        "[a-zA-Z\-_][a-zA-Z0-9\-_]*")
@@ -81,6 +80,7 @@ def grammar(g=None):
 	g.token   ("SELECTOR_SUFFIX",  "::?[\-a-z][a-z0-9\-]*(\([^\)]+\))?")
 	g.token   ("SELECTION_OPERATOR", "\>|\+|[ ]+")
 	g.word    ("INCLUDE",          "%include")
+	g.word    ("EQUAL",             "=")
 	g.word    ("COLON",            ":")
 	g.word    ("DOT",              ".")
 	g.word    ("LP",               "(")
@@ -90,7 +90,6 @@ def grammar(g=None):
 	g.word    ("COMMA",            ",")
 	g.word    ("MACRO",            "@macro")
 	g.word    ("SEMICOLON",        ";")
-	g.word    ("EQUAL",            "=")
 	g.word    ("LSBRACKET",        "[")
 	g.word    ("RSBRACKET",        "]")
 
@@ -143,6 +142,7 @@ def grammar(g=None):
 
 	g.group     ("Suffixes")
 	g.rule      ("Number",           s.NUMBER._as("value"), s.UNIT.optional()._as("unit"))
+	# TODO: Add RawString
 	g.group     ("String",           s.STRING_SQ, s.STRING_DQ, s.STRING_UQ)
 	g.group     ("Value",            s.Number, s.COLOR_HEX, s.COLOR_RGB, s.URL, s.REFERENCE, s.String)
 	g.rule      ("Parameters",       s.VARIABLE_NAME, g.arule(s.COMMA, s.VARIABLE_NAME).zeroOrMore())
@@ -503,15 +503,18 @@ class PCSSProcessor(Processor):
 	def onString( self, match ):
 		return (self.process(match.value), "S")
 
+	# def onRawString( self, match ):
+	# 	return (self.process(match.value), "R")
+
 	def onValue( self, match ):
 		value = ["V", self.process(match[0])]
 		assert isinstance(value, tuple) or isinstance(value, list) and len(value) == 2, "onValue: value expected to be `(V, (value, type))`, got {1} from {2}".format(value, match)
 		return value
 
 	def onParameters( self, match ):
-		a = self.defaultProcess(match[0])
-		b = self.defaultProcess(match[1])
-		return [self.defaultProcess(match[0])] + [_[1] for _ in b or []]
+		a = self.process(match[0])
+		b = self.process(match[1])
+		return [a] + [_[1] for _ in b or []]
 
 	def onArguments( self, match ):
 		m0 = self.process(match[0])
@@ -528,10 +531,9 @@ class PCSSProcessor(Processor):
 		return ["O", op, None, expr]
 
 	def onSuffixes( self, match ):
-		return self.process(match.group())
+		return self.process(match[0])
 
 	def onPrefix( self, match ):
-		result = self.defaultProcess(match)
 		child          = match[0]
 		grand_children = child.children()
 		result         = self.process(child)
@@ -542,7 +544,7 @@ class PCSSProcessor(Processor):
 		prefix   = self.process(match[0])
 		suffixes = self.process(match[1])
 		res      = prefix
-		for suffix in suffixes or []:
+		for suffix in suffixes or ():
 			if suffix[0] == "O":
 				suffix[2] = res
 			elif suffix[0] == "I":
@@ -576,9 +578,6 @@ class PCSSProcessor(Processor):
 		assert not tail
 		result = "".join([head] + (tail or []))
 		return  result
-
-	def onSELECTOR_SUFFIX( self, match ):
-		print "SUFFIX", match.text(), match.range()
 
 	def onSelector( self, match, scope, nid,  nclass, attributes, suffix ):
 		"""Selectors are returned as tuples `(scope, id, class, attributes, suffix)`.
@@ -761,12 +760,11 @@ class PCSSProcessor(Processor):
 		self._footer = "}"
 
 	def onSource( self, match ):
-		result = self.defaultProcess(match)
+		result = self.processChildren(match)
 		if self._footer:
 			self._write(self._footer)
 			self._footer = None
 		return result
-
 
 	# ==========================================================================
 	# OUTPUT
@@ -981,17 +979,17 @@ def parseString(text):
 	return getGrammar().parseString(text)
 
 def convert(path):
-	match = parse(path)
-	if match.status == "S":
+	result = parse(path)
+	if result.status == "S":
 		s = StringIO.StringIO()
 		p = Processor(output=s)
-		p.process(match)
+		p.process(result.match)
 		s.seek(0)
 		v = s.getvalue()
 		s.close()
 		return v
 	else:
-		raise Exception("Parsing of {0} failed at line:{1}\n> {2}".format("string", match.line, match.textAround()))
+		raise Exception("Parsing of {0} failed at line:{1}\n> {2}".format("string", result.line, result.textAround()))
 
 def run(args):
 	"""Processes the command line arguments."""
@@ -1016,26 +1014,28 @@ def run(args):
 	if args.verbose:
 		getGrammar().isVerbose = True
 	if args.output: output = open(args.output, "w")
-	for a in args.files:
-		if reporter: reporter.info("Processing: {0}".format(a))
-		match = parse(a)
+	for path in args.files:
+		if reporter: reporter.info("Processing: {0}".format(path))
+		result = parse(path)
 		if args.report:
-			output.write("Report for : {0}\n".format(a))
-			stats = match.stats()
+			output.write("Report for : {0}\n".format(path))
+			stats = result.stats()
 			stats.report(getGrammar(), output)
 		else:
-			if match.status == "S":
+			if result.status == "S":
 				try:
-					p.process(match)
+					p.process(result.match)
 				except HandlerException as e:
 					reporter.error(e)
 					for _ in e.context:
 						reporter.warn(_)
 			else:
-				msg = "Parsing of `{0}` failed at line:{1}".format(a, match.line)
+				msg = "Parsing of `{0}` failed at line:{1}#{2}".format(path, result.line, result.offset)
 				reporter.error(msg)
-				reporter.error(match.textAround())
-				raise Exception("Parsing of `{0}` failed at line:{1}\n> {2}".format(a, match.line, match.textAround()))
+				reporter.error("{0} lines".format( len(file(path).read()[0:result.offset].split("\n"))))
+				reporter.error(result.textAround())
+				# FIXME: This is inaccurate, the parsingresult does not return
+				raise Exception("Parsing of `{0}` failed at line:{1}\n> {2}".format(path, result.line, result.textAround()))
 	if args.output:
 		output.close()
 
