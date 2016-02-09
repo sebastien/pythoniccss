@@ -535,7 +535,7 @@ class PCSSProcessor(Processor):
 
 	def onPrefix( self, match ):
 		child          = match[0]
-		grand_children = child.children()
+		grand_children = child.children
 		result         = self.process(child)
 		result         = ["(", result[1]] if len(result) == 3 else result
 		return result
