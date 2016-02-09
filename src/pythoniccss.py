@@ -6,10 +6,10 @@
 # License           : BSD License
 # -----------------------------------------------------------------------------
 # Creation date     : 14-Jul-2013
-# Last modification : 28-Jan-2016
+# Last modification : 09-Feb-2016
 # -----------------------------------------------------------------------------
 
-import re, os, sys, argparse, json, copy, io
+import re, os, sys, argparse, json, copy, io, time
 from   libparsing import Grammar, Token, Word, Rule, Group, Condition, Procedure, Reference, Processor, TreeWriter, HandlerException
 
 try:
@@ -501,7 +501,7 @@ class PCSSProcessor(Processor):
 		return len(tabs) if tabs else 0
 
 	def onString( self, match ):
-		return (self.process(match.value), "S")
+		return (match.value, "S")
 
 	# def onRawString( self, match ):
 	# 	return (self.process(match.value), "R")
@@ -690,6 +690,7 @@ class PCSSProcessor(Processor):
 		if directive == "@module":
 			self.module  = value
 		else:
+			print ("DIRECTIVE", match, directive, value)
 			raise NotImplementedError
 		return None
 
@@ -760,7 +761,7 @@ class PCSSProcessor(Processor):
 		self._footer = "}"
 
 	def onSource( self, match ):
-		result = self.processChildren(match)
+		result = [self.process(_) for _ in match]
 		if self._footer:
 			self._write(self._footer)
 			self._footer = None
@@ -1002,7 +1003,8 @@ def run(args):
 	)
 	oparser.add_argument("files", metavar="FILE", type=str, nargs='+', help='The .pcss files to parse')
 	oparser.add_argument("--report",  dest="report",  action="store_true", default=False)
-	oparser.add_argument("--verbose",  dest="verbose",  action="store_true", default=False)
+	oparser.add_argument("-v", "--verbose",  dest="verbose",  action="store_true", default=False)
+	oparser.add_argument("--stats",  dest="stats", action="store_true", default=False)
 	oparser.add_argument("--output",  type=str,  dest="output", default=None)
 	# We create the parse and register the options
 	args = oparser.parse_args(args=args)
@@ -1016,7 +1018,9 @@ def run(args):
 	if args.output: output = open(args.output, "w")
 	for path in args.files:
 		if reporter: reporter.info("Processing: {0}".format(path))
+		start_time = time.time()
 		result = parse(path)
+		parse_time = time.time()
 		if args.report:
 			output.write("Report for : {0}\n".format(path))
 			stats = result.stats()
@@ -1025,6 +1029,14 @@ def run(args):
 			if result.status == "S":
 				try:
 					p.process(result.match)
+					process_time = time.time()
+					if args.stats:
+						parse_d   = parse_time - start_time
+						process_d = process_time  - start_time
+						parse_p   = 100.0 * parse_d   / (parse_d + process_d)
+						process_p = 100.0 * process_d / (parse_d + process_d)
+						reporter.info("Parsing time    {0:0.4f}s {1:0.0f}%".format(parse_d,   parse_p))
+						reporter.info("Processing time {0:0.4f}s {1:0.0f}%".format(process_d, process_p))
 				except HandlerException as e:
 					reporter.error(e)
 					for _ in e.context:
