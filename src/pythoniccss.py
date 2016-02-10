@@ -133,7 +133,7 @@ def grammar(g=None):
 	g.rule      ("Selector",         g.agroup(s.SELF, s.NODE).optional()._as("scope"), s.NODE_ID.optional()._as("nid"), s.NODE_CLASS.zeroOrMore()._as("nclass"), s.Attributes.zeroOrMore()._as("attributes"), s.SELECTOR_SUFFIX.zeroOrMore()._as("suffix"))
 	g.rule      ("SelectorNarrower", s.SELECTION_OPERATOR._as("op"), s.Selector._as("sel"))
 
-	g.rule      ("Selection",        g.agroup(s.Selector)._as("head"), s.SelectorNarrower.zeroOrMore()._as("tail"))
+	g.rule      ("Selection",        s.Selector._as("head"),  s.SelectorNarrower.zeroOrMore()._as("tail"))
 	g.rule      ("SelectionList",    s.Selection._as("head"), g.arule(s.COMMA, s.Selection).zeroOrMore()._as("tail"))
 
 	# =========================================================================
@@ -508,7 +508,7 @@ class PCSSProcessor(Processor):
 
 	def onValue( self, match ):
 		value = ["V", self.process(match[0])]
-		assert isinstance(value, tuple) or isinstance(value, list) and len(value) == 2, "onValue: value expected to be `(V, (value, type))`, got {1} from {2}".format(value, match)
+		#assert isinstance(value, tuple) or isinstance(value, list) and len(value) == 2, "onValue: value expected to be `(V, (value, type))`, got {1} from {2}".format(value, match)
 		return value
 
 	def onParameters( self, match ):
@@ -535,7 +535,6 @@ class PCSSProcessor(Processor):
 
 	def onPrefix( self, match ):
 		child          = match[0]
-		grand_children = child.children
 		result         = self.process(child)
 		result         = ["(", result[1]] if len(result) == 3 else result
 		return result
@@ -612,6 +611,7 @@ class PCSSProcessor(Processor):
 				for narrower in tail:
 					if not narrower: continue
 					res.extend(narrower)
+			# print "SELECTION.1=", res
 			return res
 		else:
 			res = []
@@ -623,6 +623,7 @@ class PCSSProcessor(Processor):
 						res.extend(v)
 				else:
 					res.extend(v)
+			# print "SELECTION.2=", res
 			return res
 
 	def onSelectionList( self, match, head, tail ):
@@ -630,8 +631,12 @@ class PCSSProcessor(Processor):
 		# tail is [[s.COMMA, s.Selection], ...]
 		tail   = [_[1] for _ in tail or [] if _[1]]
 		scopes = [head] + tail if tail else [head]
+
 		# print "onSelectionList: head=", head
 		# print "onSelectionList: tail=", tail
+		# print " tail.value", match[1].value
+		# print " tail.process", self.process(match[1])
+		# print " tail.value", match[1].value
 		# print "onSelectionList: scopes=", scopes
 		# We want to epxand the `&` in the scopes
 		scopes = self._expandScopes(scopes)
@@ -690,7 +695,6 @@ class PCSSProcessor(Processor):
 		if directive == "@module":
 			self.module  = value
 		else:
-			print ("DIRECTIVE", match, directive, value)
 			raise NotImplementedError
 		return None
 
@@ -725,6 +729,7 @@ class PCSSProcessor(Processor):
 			return self._write("{0}: {1}{2};".format(name, " ".join(evalues), suffix), indent=1)
 
 	def onBlock( self, match, indent ):
+		indent = indent or 0
 		if indent == 0:
 			self._mode   = None
 		elif self._mode == "macro":
@@ -1001,10 +1006,11 @@ def run(args):
 		prog        = os.path.basename(__file__.split(".")[0]),
 		description = "Compiles PythonicCSS files to CSS"
 	)
-	oparser.add_argument("files", metavar="FILE", type=str, nargs='+', help='The .pcss files to parse')
+	oparser.add_argument("files", metavar="FILE", type=str, nargs='*', help='The .pcss files to parse')
 	oparser.add_argument("--report",  dest="report",  action="store_true", default=False)
 	oparser.add_argument("-v", "--verbose",  dest="verbose",  action="store_true", default=False)
-	oparser.add_argument("--stats",  dest="stats", action="store_true", default=False)
+	oparser.add_argument("--stats",    dest="stats", action="store_true", default=False)
+	oparser.add_argument("--symbols",  dest="symbols", action="store_true", default=False)
 	oparser.add_argument("--output",  type=str,  dest="output", default=None)
 	# We create the parse and register the options
 	args = oparser.parse_args(args=args)
@@ -1013,11 +1019,16 @@ def run(args):
 	if not args.files:
 		sys.stderr.write(USAGE + "\n")
 	output = sys.stdout
-	if args.verbose:
-		getGrammar().isVerbose = True
+	g = getGrammar()
+	if args.verbose: g.isVerbose = True
 	if args.output: output = open(args.output, "w")
+	g.prepare()
+	# We output the list of symbols
+	if args.symbols:
+		for s in sorted(g.symbols, lambda a,b:cmp(a.id, b.id)):
+			reporter.info("Symbol #{0:10s} = {1}".format(str(s.id), s))
 	for path in args.files:
-		if reporter: reporter.info("Processing: {0}".format(path))
+		if reporter: reporter.info("Parsing: {0}".format(path))
 		start_time = time.time()
 		result = parse(path)
 		parse_time = time.time()
@@ -1028,6 +1039,7 @@ def run(args):
 		else:
 			if result.status == "S":
 				try:
+					if reporter: reporter.info("Processing: {0}".format(path))
 					p.process(result.match)
 					process_time = time.time()
 					if args.stats:
