@@ -19,6 +19,10 @@ except ImportError:
 
 VERSION = "0.2.0"
 LICENSE = "http://ffctn.com/doc/licenses/bsd"
+IS_PYTHON3 = sys.version_info[0] >= 3
+if IS_PYTHON3:
+	unicode = str
+
 
 __doc__ = """
 Processor for the PythonicCSS language. This module use a PEG-based parsing
@@ -1037,7 +1041,7 @@ def run(args):
 			stats = result.stats()
 			stats.report(getGrammar(), output)
 		else:
-			if result.status == "S":
+			if result.isComplete():
 				try:
 					if reporter: reporter.info("Processing: {0}".format(path))
 					p.process(result.match)
