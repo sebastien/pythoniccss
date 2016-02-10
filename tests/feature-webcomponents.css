@@ -1,0 +1,19 @@
+/* We should generate stuff like that */
+@host {
+  /* Gotcha: higher specificity than any selector,
+     lower specificity than declarations from a <style> attribute. */
+  * {
+    opacity: 0.2;
+    +transition: opacity 400ms ease-in-out;
+  }
+  *:hover {
+    opacity: 1;
+  }
+}
+
+input[type=range].custom::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  background-color: blue;
+  width: 10px;
+  height: 40px;
+}
