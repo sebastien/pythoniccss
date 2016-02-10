@@ -320,7 +320,7 @@ class PCSSProcessor(Processor):
 			colors = {}
 			# We extract the color names from X11's rgb file
 			# SEE: https://en.wikipedia.org/wiki/X11_color_names#Color_name_chart
-			with file("/usr/share/X11/rgb.txt") as f:
+			with open("/usr/share/X11/rgb.txt") as f:
 				# FIXME: Somehow, this creates a sefault
 				# for line in f.readlines():
 				# 	print (line)
@@ -1056,7 +1056,7 @@ def run(args):
 			else:
 				msg = "Parsing of `{0}` failed at line:{1}#{2}".format(path, result.line, result.offset)
 				reporter.error(msg)
-				reporter.error("{0} lines".format( len(file(path).read()[0:result.offset].split("\n"))))
+				reporter.error("{0} lines".format( len(open(path).read()[0:result.offset].split("\n"))))
 				reporter.error(result.textAround())
 				# FIXME: This is inaccurate, the parsingresult does not return
 				raise Exception("Parsing of `{0}` failed at line:{1}\n> {2}".format(path, result.line, result.textAround()))
