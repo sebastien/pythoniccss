@@ -10,7 +10,7 @@
 # -----------------------------------------------------------------------------
 
 import re, os, sys, argparse, json, copy, io, time
-from   libparsing import Grammar, Token, Word, Rule, Group, Condition, Procedure, Reference, Processor, TreeWriter, HandlerException
+from   libparsing import Grammar, Token, Word, Rule, Group, Condition, Procedure, Reference, Match, Processor, TreeWriter, HandlerException, LIB, C
 
 try:
 	import reporter
@@ -22,7 +22,6 @@ LICENSE = "http://ffctn.com/doc/licenses/bsd"
 IS_PYTHON3 = sys.version_info[0] >= 3
 if IS_PYTHON3:
 	unicode = str
-
 
 __doc__ = """
 Processor for the PythonicCSS language. This module use a PEG-based parsing
@@ -1038,7 +1037,7 @@ def run(args):
 		parse_time = time.time()
 		if args.report:
 			output.write("Report for : {0}\n".format(path))
-			stats = result.stats()
+			stats = result.stats
 			stats.report(getGrammar(), output)
 		else:
 			if result.isComplete():
