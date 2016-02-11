@@ -10,7 +10,7 @@
 # -----------------------------------------------------------------------------
 
 import re, os, sys, argparse, json, copy, io, time
-from   libparsing import Grammar, Token, Word, Rule, Group, Condition, Procedure, Reference, Match, Processor, TreeWriter, HandlerException, LIB, C
+from   libparsing import *
 
 try:
 	import reporter
