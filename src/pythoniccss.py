@@ -9,6 +9,7 @@
 # Last modification : 09-Feb-2016
 # -----------------------------------------------------------------------------
 
+from __future__ import print_function
 import re, os, sys, argparse, json, copy, io, time
 from   libparsing import *
 
@@ -504,7 +505,8 @@ class PCSSProcessor(Processor):
 		return len(tabs) if tabs else 0
 
 	def onString( self, match ):
-		return (match.value, "S")
+		value = self.process(match[0])
+		return (value, "S")
 
 	# def onRawString( self, match ):
 	# 	return (self.process(match.value), "R")
@@ -921,6 +923,7 @@ class PCSSProcessor(Processor):
 		representation."""
 		assert isinstance(value, list) or isinstance(value, tuple) and len(value) == 2, "{0}: Expected `(type, value)`, got {1}".format(self._valueAsString, repr(value))
 		v, u = value ; u = u or ""
+		# == UNITS
 		if   u == "L":
 			return ", ".join([self._valueAsString(_) for _ in v])
 		elif u == "l":
@@ -946,6 +949,7 @@ class PCSSProcessor(Processor):
 				return "rgba({0},{1},{2},{3:0.2f})".format(*v)
 			else:
 				raise ProcessingException("Expected RGB triple, RGBA quadruple or string, got: {0} in {1}".format(v, value))
+		# == VALUES
 		if   type(v) == int:
 			return "{0:d}{1}".format(v,u)
 		elif type(v) == float:
@@ -955,18 +959,12 @@ class PCSSProcessor(Processor):
 				v = v[0:-1]
 			if v.endswith(".0"):v = v[:-2]
 			return v + u
-		elif type(v) == str:
+		elif type(v) in (str, unicode):
 			# FIXME: Proper escaping
-			if self._property != "content" and self.RE_UNQUOTED.match(v):
-				return "{0:s}".format(v,u)
+			if self._property == "content":
+				return "{0:s}".format(json.dumps(v).replace("\\u", "\\"))
 			else:
-				return "{0:s}".format(json.dumps(v).replace("\\u", "\\"),u)
-		elif type(v) == unicode:
-			# FIXME: Proper escaping
-			if self._property != "content" and self.RE_UNQUOTED.match(v):
-				return "{0:s}".format(v,u)
-			else:
-				return "{0:s}".format(json.dumps(v).replace("\\u", "\\"),u)
+				return str(v)
 		else:
 			raise ProcessingException("Value string conversion not implemented: {0}".format(value))
 
@@ -1031,7 +1029,6 @@ def run(args):
 		for s in sorted(g.symbols, lambda a,b:cmp(a.id, b.id)):
 			reporter.info("Symbol #{0:10s} = {1}".format(str(s.id), s))
 	for path in args.files:
-		if reporter: reporter.info("Parsing: {0}".format(path))
 		start_time = time.time()
 		result = parse(path)
 		parse_time = time.time()
@@ -1042,7 +1039,6 @@ def run(args):
 		else:
 			if result.isComplete():
 				try:
-					if reporter: reporter.info("Processing: {0}".format(path))
 					p.process(result.match)
 					process_time = time.time()
 					if args.stats:
