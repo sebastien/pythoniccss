@@ -443,7 +443,7 @@ class PCSSProcessor(Processor):
 		until the name is found, returning `None` if never found."""
 		level     = len(self.variables) - depth
 		variables = self.variables[level] if len(self.variables) >= depth else None
-		if not variables:
+		if variables is None:
 			raise ProcessingException("Variable not defined: {0}".format(name))
 		elif name not in variables:
 			return self.resolve(name, propertyName, prefix, depth + 1)
