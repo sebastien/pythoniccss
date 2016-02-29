@@ -651,7 +651,7 @@ class PCSSProcessor(Processor):
 		# We want to epxand the `&` in the scopes
 		scopes = self._expandScopes(scopes)
 		# We push the expanded scopes in the scopes stack
-		self.scopes.append(scopes)
+		self._pushScope(scopes)
 		self._header = ",\n".join((self._selectionAsString(_) for _ in self.scopes[-1])) + " {"
 		return self._header
 
@@ -740,8 +740,7 @@ class PCSSProcessor(Processor):
 
 	def onBlock( self, match, indent ):
 		indent = indent or 0
-		self.variables.append({})
-		self._evaluated.append({})
+		delta  = indent - len(self.scopes)
 		if indent == 0:
 			self._mode   = None
 		elif self._mode == "macro":
@@ -750,11 +749,9 @@ class PCSSProcessor(Processor):
 		self.indent = indent
 		self._writeFooter()
 		while len(self.scopes) > indent:
-			self.scopes.pop()
+			self._popScope()
 		self.process(match["selector"])
 		self.process(match["code"])
-		self.variables.pop()
-		self._evaluated.pop()
 
 	def onMacroBlock( self, match, type, indent=None):
 		if indent == 0:
@@ -799,6 +796,20 @@ class PCSSProcessor(Processor):
 		line = "  " * indent + line + "\n"
 		self.output.write(line)
 		return line
+
+	# ==========================================================================
+	# VARIABLES
+	# ==========================================================================
+
+	def _pushScope( self, scopes ):
+		self.scopes.append(scopes)
+		self.variables.append({})
+		self._evaluated.append({})
+
+	def _popScope( self ):
+		self.variables.pop()
+		self._evaluated.pop()
+		return self.scopes.pop()
 
 	# ==========================================================================
 	# SCOPE & SELECTION HELPERS
