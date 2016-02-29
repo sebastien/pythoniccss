@@ -6,7 +6,7 @@
 # License           : BSD License
 # -----------------------------------------------------------------------------
 # Creation date     : 14-Jul-2013
-# Last modification : 09-Feb-2016
+# Last modification : 22-Feb-2016
 # -----------------------------------------------------------------------------
 
 from __future__ import print_function
@@ -18,7 +18,7 @@ try:
 except ImportError:
 	reporter = None
 
-VERSION = "0.2.0"
+VERSION = "0.3.0"
 LICENSE = "http://ffctn.com/doc/licenses/bsd"
 IS_PYTHON3 = sys.version_info[0] >= 3
 if IS_PYTHON3:
@@ -164,15 +164,6 @@ def grammar(g=None):
 	# TODO: Might be better to use COMMA as a suffix to chain expressions
 	s.Suffixes.set(s.InfixOperation, s.Invocation)
 
-	# =========================================================================
-	# LINES (BODY)
-	# =========================================================================
-
-	g.rule      ("Comment",          s.COMMENT.oneOrMore(), s.EOL)
-	g.rule      ("Include",          s.INCLUDE, s.PATH,     s.EOL)
-	g.rule      ("Declaration",      s.SPECIAL_NAME.optional()._as("decorator"), s.VARIABLE_NAME._as("name"), s.EQUAL, s.ExpressionList._as("value"), s.EOL)
-	# FIXME: If we remove optional() from SPECIAL_NAME, we get a core dump...
-	g.rule      ("Directive",        s.SPECIAL_NAME.optional()._as("directive"), s.VARIABLE_NAME._as("value"), s.EOL)
 
 	# =========================================================================
 	# OPERATIONS
@@ -181,6 +172,18 @@ def grammar(g=None):
 	g.rule      ("Assignment",       s.CSS_PROPERTY._as("name"), s.COLON, s.ExpressionList.oneOrMore()._as("values"), s.IMPORTANT.optional()._as("important"), s.SEMICOLON.optional())
 	#g.rule      ("Assignment",       s.CSS_PROPERTY._as("name"), s.COLON, s.Expression.oneOrMore()._as("values"), s.IMPORTANT.optional()._as("important"), s.SEMICOLON.optional())
 	g.rule      ("MacroInvocation",  s.NAME._as("name"),   s.LP, s.Arguments.optional()._as("arguments"), s.RP)
+	g.rule      ("Declaration",      s.SPECIAL_NAME.optional()._as("decorator"), s.VARIABLE_NAME._as("name"), s.EQUAL, s.ExpressionList._as("value"))
+
+
+	# =========================================================================
+	# LINES (BODY)
+	# =========================================================================
+
+	g.rule      ("Comment",          s.COMMENT.oneOrMore(), s.EOL)
+	g.rule      ("Include",          s.INCLUDE, s.PATH,     s.EOL)
+	g.rule      ("Definition",       s.Declaration, s.EOL)
+	# FIXME: If we remove optional() from SPECIAL_NAME, we get a core dump...
+	g.rule      ("Directive",        s.SPECIAL_NAME.optional()._as("directive"), s.VARIABLE_NAME._as("value"), s.EOL)
 
 	# =========================================================================
 	# BLOCK STRUCTURE
@@ -190,7 +193,7 @@ def grammar(g=None):
 	# of the failures. A good idea would be to append the indentation value to
 	# the caching key.
 	# .processMemoizationKey(lambda _,c:_ + ":" + c.getVariables().get("requiredIndent", 0))
-	g.rule("Statement",     s.CheckIndent._as("indent"), g.agroup(s.Assignment, s.MacroInvocation, s.COMMENT), s.EOL)
+	g.rule("Statement",     s.CheckIndent._as("indent"), g.agroup(s.Assignment, s.MacroInvocation, s.Declaration, s.COMMENT), s.EOL)
 	g.rule("Block",         s.CheckIndent._as("indent"), g.agroup(s.PERCENTAGE, s.SelectionList)._as("selector"), s.COLON.optional(), s.EOL, s.Indent, s.Statement.zeroOrMore()._as("code"), s.Dedent)
 
 	g.rule    ("MacroDeclaration", s.MACRO, s.NAME._as("name"), s.Parameters.optional()._as("parameters"), s.COLON.optional())
@@ -204,7 +207,7 @@ def grammar(g=None):
 	# AXIOM
 	# =========================================================================
 
-	g.group     ("Source",  g.agroup(s.Comment, s.Block, s.MacroBlock, s.Directive, s.SpecialBlock, s.Declaration, s.Include).zeroOrMore())
+	g.group     ("Source",  g.agroup(s.Comment, s.Block, s.MacroBlock, s.Directive, s.SpecialBlock, s.Definition, s.Include).zeroOrMore())
 	g.skip  = s.SPACE
 	g.axiom = s.Source
 	g.prepare()
@@ -436,6 +439,8 @@ class PCSSProcessor(Processor):
 			raise ProcessingException("Evaluate not implemented for: {0} in {1}".format(e, name))
 
 	def resolve( self, name, propertyName=None, prefix=None, depth=1 ):
+		"""Resolves the given name at the given level. This will bubble up the levels
+		until the name is found, returning `None` if never found."""
 		level     = len(self.variables) - depth
 		variables = self.variables[level] if len(self.variables) >= depth else None
 		if not variables:
@@ -735,6 +740,8 @@ class PCSSProcessor(Processor):
 
 	def onBlock( self, match, indent ):
 		indent = indent or 0
+		self.variables.append({})
+		self._evaluated.append({})
 		if indent == 0:
 			self._mode   = None
 		elif self._mode == "macro":
@@ -746,6 +753,8 @@ class PCSSProcessor(Processor):
 			self.scopes.pop()
 		self.process(match["selector"])
 		self.process(match["code"])
+		self.variables.pop()
+		self._evaluated.pop()
 
 	def onMacroBlock( self, match, type, indent=None):
 		if indent == 0:
