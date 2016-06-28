@@ -481,9 +481,10 @@ class PCSSProcessor(Processor):
 	def onCOLOR_RGB(self, match ):
 		c = match.group(1).split(",")
 		if len(c) == 3:
-			return [[int(_) for _ in c], "C"]
+			c = [[int(_) for _ in c], "C"]
 		else:
-			return [[int(_) for _ in c[:3] + [float(c[3])]], "C"]
+			c = [[int(_) for _ in c[:3]] + [float(c[3])], "C"]
+		return c
 
 	def onREFERENCE(self, match):
 		return (match.group(1), "R")
