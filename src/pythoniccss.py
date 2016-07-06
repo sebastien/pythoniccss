@@ -24,6 +24,10 @@ IS_PYTHON3 = sys.version_info[0] >= 3
 if IS_PYTHON3:
 	unicode = str
 
+# TODO: Separate formatting from pure parsing
+# TODO: Write a query tool that lists all the property definitions for
+#       a given selector
+
 __doc__ = """
 Processor for the PythonicCSS language. This module use a PEG-based parsing
 engine <http://github.com/sebastien/parsing>, which sadly has an important
@@ -164,7 +168,6 @@ def grammar(g=None):
 	# TODO: Might be better to use COMMA as a suffix to chain expressions
 	s.Suffixes.set(s.InfixOperation, s.Invocation)
 
-
 	# =========================================================================
 	# OPERATIONS
 	# =========================================================================
@@ -173,7 +176,6 @@ def grammar(g=None):
 	#g.rule      ("Assignment",       s.CSS_PROPERTY._as("name"), s.COLON, s.Expression.oneOrMore()._as("values"), s.IMPORTANT.optional()._as("important"), s.SEMICOLON.optional())
 	g.rule      ("MacroInvocation",  s.NAME._as("name"),   s.LP, s.Arguments.optional()._as("arguments"), s.RP)
 	g.rule      ("Declaration",      s.SPECIAL_NAME.optional()._as("decorator"), s.VARIABLE_NAME._as("name"), s.EQUAL, s.ExpressionList._as("value"))
-
 
 	# =========================================================================
 	# LINES (BODY)
@@ -493,13 +495,13 @@ class PCSSProcessor(Processor):
 		return match.group()
 
 	def onSTRING_DQ(self, match ):
-		return self._stringEscapeFix(match.group(1))
+		return [self._stringEscapeFix(match.group(1)), '"']
 
 	def onSTRING_SQ(self, match ):
-		return self._stringEscapeFix(match.group(1))
+		return [self._stringEscapeFix(match.group(1)), "'"]
 
 	def onSTRING_UQ(self, match ):
-		return match.group()
+		return [match.group(), None]
 
 	def onPERCENTAGE(self, match ):
 		if self._mode == "macro":
@@ -970,6 +972,12 @@ class PCSSProcessor(Processor):
 				return "rgba({0},{1},{2},{3:0.2f})".format(*v)
 			else:
 				raise ProcessingException("Expected RGB triple, RGBA quadruple or string, got: {0} in {1}".format(v, value))
+		elif u == "S":
+			s,q = v
+			if q:
+				return q + s.encode("utf8") + q
+			else:
+				return s.encode("utf8")
 		# == VALUES
 		if   type(v) == int:
 			return "{0:d}{1}".format(v,u)
@@ -980,12 +988,17 @@ class PCSSProcessor(Processor):
 				v = v[0:-1]
 			if v.endswith(".0"):v = v[:-2]
 			return v + u
-		elif type(v) in (str, unicode):
-			# FIXME: Proper escaping
+		elif (isinstance(v, tuple) or isinstance (v, list)) and v[1] in (None, "'", '"'):
 			if self._property == "content":
-				return "{0:s}".format(json.dumps(v).replace("\\u", "\\"))
+				v,p = v
+				v   = json.dumps(v)
+				return (p + v + p) if p else v
 			else:
 				return str(v)
+		elif isinstance(v, str):
+			return v
+		elif isinstance(v, unicode):
+			return v.encode("utf-8")
 		else:
 			raise ProcessingException("Value string conversion not implemented: {0}".format(value))
 
