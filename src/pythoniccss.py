@@ -87,6 +87,7 @@ def grammar(g=None):
 	g.token   ("ATTRIBUTE_VALUE",  "\"[^\"]*\"|'[^']*'|[^,\]]+")
 	g.token   ("SELECTOR_SUFFIX",  "::?[\-a-z][a-z0-9\-]*(\([^\)]+\))?")
 	g.token   ("SELECTION_OPERATOR", "\>|\+|[ ]+")
+	g.token   ("REST",              ".+")
 	g.word    ("INCLUDE",          "%include")
 	g.word    ("EQUAL",             "=")
 	g.word    ("COLON",            ":")
@@ -125,6 +126,7 @@ def grammar(g=None):
 	g.token   ("URL",              "url\((\"[^\"]*\"|\'[^\']*\'|[^\)]*)\)")
 	g.token   ("CSS_PROPERTY",    "[\-a-z][\-a-z0-9]*")
 	g.token   ("SPECIAL_NAME",     "@[A-Za-z][A-Za-z0-9\_\-]*")
+	g.token   ("CSS_DIRECTIVE",    "@@[A-Za-z][A-Za-z0-9\_\-]*")
 	g.token   ("SPECIAL_FILTER",   "\[[^\]]+\]")
 
 	# =========================================================================
@@ -186,6 +188,7 @@ def grammar(g=None):
 	g.rule      ("Definition",       s.Declaration, s.EOL)
 	# FIXME: If we remove optional() from SPECIAL_NAME, we get a core dump...
 	g.rule      ("Directive",        s.SPECIAL_NAME.optional()._as("directive"), s.VARIABLE_NAME._as("value"), s.EOL)
+	g.rule      ("CSSDirective",     s.CSS_DIRECTIVE._as("directive"),  s.REST._as("value"), s.EOL)
 
 	# =========================================================================
 	# BLOCK STRUCTURE
@@ -209,7 +212,7 @@ def grammar(g=None):
 	# AXIOM
 	# =========================================================================
 
-	g.group     ("Source",  g.agroup(s.Comment, s.Block, s.MacroBlock, s.Directive, s.SpecialBlock, s.Definition, s.Include).zeroOrMore())
+	g.group     ("Source",  g.agroup(s.Comment, s.Block, s.MacroBlock, s.CSSDirective, s.Directive, s.SpecialBlock, s.Definition, s.Include).zeroOrMore())
 	g.skip  = s.SPACE
 	g.axiom = s.Source
 	g.prepare()
@@ -709,6 +712,10 @@ class PCSSProcessor(Processor):
 			self.module  = value
 		else:
 			raise NotImplementedError
+		return None
+
+	def onCSSDirective( self, match, directive, value=None ):
+		self._write(directive[1:] + value + ";")
 		return None
 
 	def onAssignment( self, match, name, values, important ):
