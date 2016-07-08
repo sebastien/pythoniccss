@@ -6,7 +6,7 @@
 # License           : BSD License
 # -----------------------------------------------------------------------------
 # Creation date     : 14-Jul-2013
-# Last modification : 22-Feb-2016
+# Last modification : 06-Jul-2016
 # -----------------------------------------------------------------------------
 
 from __future__ import print_function
@@ -66,6 +66,12 @@ def doDedent(context, match):
 	i = v.get("requiredIndent") or 0
 	v.set("requiredIndent", i - 1)
 	return True
+
+def asString(value):
+	if type(value) in (list, tuple) and len(value) == 2:
+		return value[0]
+	else:
+		return value
 
 # -----------------------------------------------------------------------------
 #
@@ -405,7 +411,7 @@ class PCSSProcessor(Processor):
 				return v
 			if self.IsColorProperty(name) and v[1] == "S":
 				# We have a color name as a string in a color property, we expand it
-				return (self.ColorFromName(v[0]) or v[0], "C")
+				return (self.ColorFromName(v[0][0]) or v[0][0], "C")
 			elif v[1] == "S":
 				if name in self.PREFIXABLE_VALUES_PROPERTIES and prefix and v[0] in self.PREFIXABLE_PROPERTIES:
 					# FIXME: Not sure
@@ -466,7 +472,7 @@ class PCSSProcessor(Processor):
 	# ==========================================================================
 
 	def onURL(self, match ):
-		return (match.group(0), "S")
+		return ((match.group(0), None), "S")
 
 	def onCOLOR_HEX(self, match ):
 		c = (match.group(1))
