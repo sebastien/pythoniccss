@@ -6,7 +6,7 @@
 # License           : BSD License
 # -----------------------------------------------------------------------------
 # Creation date     : 14-Jul-2013
-# Last modification : 06-Jul-2016
+# Last modification : 18-Jul-2016
 # -----------------------------------------------------------------------------
 
 from __future__ import print_function
@@ -18,7 +18,7 @@ try:
 except ImportError:
 	reporter = None
 
-VERSION = "0.3.0"
+VERSION = "0.3.1"
 LICENSE = "http://ffctn.com/doc/licenses/bsd"
 IS_PYTHON3 = sys.version_info[0] >= 3
 if IS_PYTHON3:
@@ -111,6 +111,7 @@ def grammar(g=None):
 	g.token   ("PATH",             "\"[^\"]+\"|'[^']'|[^\s\n]+")
 	g.token   ("PERCENTAGE",       "\d+(\.\d+)?%")
 	g.token   ("STRING_SQ",        "'((\\\\'|[^'\\n])*)'")
+	g.token   ("STRING_BQ",        "`((\\\\`|[^`\\n])*)`")
 	g.token   ("STRING_DQ",        "\"((\\\\\"|[^\"\n])*)\"")
 	g.token   ("STRING_UQ",        "[^\s\n\*\+,:;\(\)\[\]]+")
 	g.token   ("INFIX_OPERATOR",   "[\-\+\*\/]")
@@ -159,7 +160,7 @@ def grammar(g=None):
 	g.group     ("Suffixes")
 	g.rule      ("Number",           s.NUMBER._as("value"), s.UNIT.optional()._as("unit"))
 	# TODO: Add RawString
-	g.group     ("String",           s.STRING_SQ, s.STRING_DQ, s.STRING_UQ)
+	g.group     ("String",           s.STRING_BQ, s.STRING_SQ, s.STRING_DQ, s.STRING_UQ)
 	g.group     ("Value",            s.Number, s.COLOR_HEX, s.COLOR_RGB, s.URL, s.REFERENCE, s.String)
 	g.rule      ("Parameters",       s.VARIABLE_NAME, g.arule(s.COMMA, s.VARIABLE_NAME).zeroOrMore())
 	g.rule      ("Arguments",        s.Value, g.arule(s.COMMA, s.Value).zeroOrMore())
@@ -413,12 +414,13 @@ class PCSSProcessor(Processor):
 				# We have a color name as a string in a color property, we expand it
 				return (self.ColorFromName(v[0][0]) or v[0][0], "C")
 			elif v[1] == "S":
-				if name in self.PREFIXABLE_VALUES_PROPERTIES and prefix and v[0] in self.PREFIXABLE_PROPERTIES:
+				value, quote = v[0]
+				if name in self.PREFIXABLE_VALUES_PROPERTIES and prefix and value in self.PREFIXABLE_PROPERTIES:
 					# FIXME: Not sure
 					# We're in a property that references prexiable properties
-					p = prefix + v[0]
+					p = prefix + value
 					p = self.PREFIXABLE_PROPERTIES_OVERRIDES.get(p) or p
-					return (p, v[1])
+					return ([p, quote], v[1])
 				else:
 					return v
 			else:
@@ -502,6 +504,9 @@ class PCSSProcessor(Processor):
 
 	def onCSS_PROPERTY(self, match ):
 		return match.group()
+
+	def onSTRING_BQ(self, match ):
+		return [self._stringEscapeFix(match.group(1)), '']
 
 	def onSTRING_DQ(self, match ):
 		return [self._stringEscapeFix(match.group(1)), '"']
@@ -1001,7 +1006,7 @@ class PCSSProcessor(Processor):
 				v = v[0:-1]
 			if v.endswith(".0"):v = v[:-2]
 			return v + u
-		elif (isinstance(v, tuple) or isinstance (v, list)) and v[1] in (None, "'", '"'):
+		elif (isinstance(v, tuple) or isinstance (v, list)) and v[1] in (None, "'", '"', ""):
 			if self._property == "content":
 				v,p = v
 				v   = json.dumps(v)

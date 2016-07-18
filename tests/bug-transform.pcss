@@ -1,0 +1,8 @@
+// BUG: The "transform" property is not prefixed anymore
+// EXPECTED:
+//  -moz-transition-property: -moz-transform;
+//  -webkit-transition-property: -webkit-transform;
+//  -o-transition-property: -o-transform;
+//  -ms-transition-property: -ms-transform;
+div:
+	transition-property: transform
