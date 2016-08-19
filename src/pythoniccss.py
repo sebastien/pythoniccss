@@ -1064,10 +1064,9 @@ def run(args):
 	oparser.add_argument("-v", "--verbose",  dest="verbose",  action="store_true", default=False)
 	oparser.add_argument("--stats",    dest="stats", action="store_true", default=False)
 	oparser.add_argument("--symbols",  dest="symbols", action="store_true", default=False)
-	oparser.add_argument("--output",  type=str,  dest="output", default=None)
+	oparser.add_argument("-o", "--output",  type=str,  dest="output", default=None)
 	# We create the parse and register the options
 	args = oparser.parse_args(args=args)
-	p   = PCSSProcessor(output=sys.stdout)
 	# p = TreeWriter(output=sys.stdout)
 	if not args.files:
 		sys.stderr.write(USAGE + "\n")
@@ -1076,6 +1075,7 @@ def run(args):
 	if args.verbose: g.isVerbose = True
 	if args.output: output = open(args.output, "w")
 	g.prepare()
+	p = PCSSProcessor(output=output)
 	# We output the list of symbols
 	if args.symbols:
 		for s in sorted(g.symbols, lambda a,b:cmp(a.id, b.id)):
