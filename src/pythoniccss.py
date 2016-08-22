@@ -94,7 +94,7 @@ def grammar(g=None):
 	g.token   ("SELECTOR_SUFFIX",  "::?[\-a-z][a-z0-9\-]*(\([^\)]+\))?")
 	g.token   ("SELECTION_OPERATOR", "\>|\+|[ ]+")
 	g.token   ("REST",              ".+")
-	g.word    ("INCLUDE",          "%include")
+	g.word    ("INCLUDE",          "@include")
 	g.word    ("EQUAL",             "=")
 	g.word    ("COLON",            ":")
 	g.word    ("DOT",              ".")
@@ -191,7 +191,7 @@ def grammar(g=None):
 	# =========================================================================
 
 	g.rule      ("Comment",          s.COMMENT.oneOrMore(), s.EOL)
-	g.rule      ("Include",          s.INCLUDE, s.PATH,     s.EOL)
+	g.rule      ("Include",          s.INCLUDE, s.PATH._as("path"),  s.EOL)
 	g.rule      ("Definition",       s.Declaration, s.EOL)
 	# FIXME: If we remove optional() from SPECIAL_NAME, we get a core dump...
 	g.rule      ("Directive",        s.SPECIAL_NAME.optional()._as("directive"), s.VARIABLE_NAME._as("value"), s.EOL)
@@ -703,6 +703,11 @@ class PCSSProcessor(Processor):
 		if unit == "%": value = value / 100.0
 		return (value, unit)
 
+	def onInclude( self, match, path ):
+		if os.path.exists(path):
+			result = self.grammar.parsePath(path)
+			self.process(result.match)
+
 	def onDeclaration( self, match, decorator, name, value ):
 		assert len(value) == 1
 		value = value[0]
@@ -1075,7 +1080,7 @@ def run(args):
 	if args.verbose: g.isVerbose = True
 	if args.output: output = open(args.output, "w")
 	g.prepare()
-	p = PCSSProcessor(output=output)
+	p = PCSSProcessor(output=output, grammar=g)
 	# We output the list of symbols
 	if args.symbols:
 		for s in sorted(g.symbols, lambda a,b:cmp(a.id, b.id)):
