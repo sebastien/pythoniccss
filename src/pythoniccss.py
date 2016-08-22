@@ -6,7 +6,7 @@
 # License           : BSD License
 # -----------------------------------------------------------------------------
 # Creation date     : 14-Jul-2013
-# Last modification : 18-Jul-2016
+# Last modification : 22-Aug-2016
 # -----------------------------------------------------------------------------
 
 from __future__ import print_function
@@ -362,6 +362,11 @@ class PCSSProcessor(Processor):
 		Processor.__init__(self, grammar or getGrammar())
 		self.reset()
 		self.output = output
+		self.path   = None
+
+	def process( self, result, path=False ):
+		if path is not False: self.path = path
+		return super(PCSSProcessor, self).process(result)
 
 	def reset( self ):
 		"""Resets the state of the processor. To be called inbetween parses."""
@@ -704,9 +709,11 @@ class PCSSProcessor(Processor):
 		return (value, unit)
 
 	def onInclude( self, match, path ):
-		if os.path.exists(path):
-			result = self.grammar.parsePath(path)
-			self.process(result.match)
+		if not os.path.exists(path) and self.path:
+			path = os.path.join(os.path.dirname(os.path.abspath(self.path)), path)
+		assert os.path.exists(path), "@include {0}: file does not exist.".format(path)
+		result = self.grammar.parsePath(path)
+		self.process(result.match)
 
 	def onDeclaration( self, match, decorator, name, value ):
 		assert len(value) == 1
@@ -1096,7 +1103,7 @@ def run(args):
 		else:
 			if result.isComplete():
 				try:
-					p.process(result.match)
+					p.process(result.match, path)
 					process_time = time.time()
 					if args.stats:
 						parse_d   = parse_time - start_time
