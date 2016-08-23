@@ -712,9 +712,16 @@ class PCSSProcessor(Processor):
 		if not os.path.exists(path) and self.path:
 			path = os.path.join(os.path.dirname(os.path.abspath(self.path)), path)
 		assert os.path.exists(path), "@include {0}: file does not exist.".format(path)
-		# FIXME: Grammar is not really re-entrant
-		result = self.grammar.parsePath(path)
-		self.process(result.match)
+		# We create an entirely new processor with a new grammar to avoid
+		# reference issues (and core dumps). I'm definitely not an expert
+		# at writing Python C extensions.
+		g            = grammar(0)
+		subprocessor = self.__class__(grammar=g, output=self.output)
+		match  = g.parsePath(path)
+		result = subprocessor.process(match.match)
+		self.variables[-1].update(subprocessor.variables[0])
+		self.units.update(subprocessor.units)
+		self._macros.update(subprocessor._macros)
 
 	def onDeclaration( self, match, decorator, name, value ):
 		assert len(value) == 1

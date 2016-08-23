@@ -1,0 +1,177 @@
+// ----------------------------------------------------------------------------
+// Project           : UIS Components
+// ----------------------------------------------------------------------------
+// Author            : FFunction
+// License           : BSD License
+// ----------------------------------------------------------------------------
+// Creation date     : 2016-08-22
+// Last modification : 2016-08-22
+// ----------------------------------------------------------------------------
+
+@module  uiscomponents
+@include bug-import-segfault-include.pcss
+
+:
+	font-family: $FONT_BASE
+
+.hidden:
+	display: none
+
+.color-01:
+	color: $COLOR_01
+
+.color-02:
+	color: $COLOR_02
+
+.color-03:
+	color: $COLOR_03
+
+.color-04:
+	color: $COLOR_04
+
+.color-05:
+	color: $COLOR_05
+
+.color-06:
+	color: $COLOR_06
+
+.bg-01:
+	background-color: $COLOR_01
+
+.bg-02:
+	background-color: $COLOR_02
+
+.bg-03:
+	background-color: $COLOR_03
+
+.bg-04:
+	background-color: $COLOR_04
+
+.bg-05:
+	background-color: $COLOR_05
+
+.bg-06:
+	background-color: $COLOR_06
+
+.bg-S01:
+	background-color: $COLOR_SECTION_01
+
+.bg-S02:
+	background-color: $COLOR_SECTION_02
+
+.bg-S03:
+	background-color: $COLOR_SECTION_03
+
+.bg-S04:
+	background-color: $COLOR_SECTION_04
+
+.bg-S05:
+	background-color: $COLOR_SECTION_05
+
+h1, .h1:
+	font-family: $FONT_ADAMANT
+	font-size:   35pem
+	font-weight: $WEIGHT_REGULAR
+	line-height: 48/35em
+	color:       $COLOR_BLACK
+
+h2, .h2:
+	font-family: $FONT_OPEN_SANS
+	font-weight: $WEIGHT_SEMI_BOLD
+	color:       $COLOR_BLACK
+	font-size:   20pem
+	line-height: 28/20em
+
+h3, .h3:
+	font-family: $FONT_OPEN_SANS
+	font-weight: $WEIGHT_BOLD
+	color:       $COLOR_BLACK
+	font-size:   16pem
+	line-height: 22/16em
+
+h4, .h4:
+	font-family: $FONT_OPEN_SANS
+	font-weight: $WEIGHT_SEMI_BOLD
+	color:       $COLOR_BLACK
+	font-size:   16pem
+	line-height: 22/16em
+
+h5, .h5:
+	font-family: $FONT_OPEN_SANS
+	font-weight: $WEIGHT_BOLD
+	color:       $COLOR_BLACK
+	font-size:   14pem
+	line-height: 26/14em
+
+h6, .h6:
+	font-family: $FONT_OPEN_SANS
+	font-weight: $WEIGHT_REGULAR
+	color:       $COLOR_BLACK
+	font-size:   14pem
+	line-height: 26/14em
+
+.h7:
+	font-family: $FONT_OPEN_SANS
+	font-weight: $WEIGHT_REGULAR
+	text-transform: uppercase
+	color:       $COLOR_BLACK
+	font-size:   12pem
+	line-height: 18/12em
+
+.h8:
+	font-family: $FONT_OPEN_SANS
+	font-weight: $WEIGHT_REGULAR
+	text-transform: uppercase
+	color:       $COLOR_GREY
+	font-size:   12pem
+	line-height: 18/12em
+
+
+.legend, .metric:
+	.icon:
+		display: inline-block
+		vertical-align: middle
+		width: 1.25em
+		height: 1.25em
+		// NOTE: Not sure how that worked
+		line-height: 0.85em
+		position: relative
+		text-align: center
+		&:after:
+			content: "●"
+.legend:
+	&, .symbol:
+		margin: 0em
+		padding: 0em
+		list-style-type: none
+	.symbol:
+		display: inline-block
+		margin-right: 1.25em
+	.square .icon:after:
+		content: "■"
+	.circle .icon:after:
+		content: "●"
+	.diamond .icon:after:
+		content: "◆"
+
+.metrics:
+	display: flex
+	&, .metric:
+		margin: 0em
+		padding: 0em
+		list-style-type: none
+	.metric:
+		display: inline-block
+		margin-right: 1.25em
+	// NOTE: We use an element name because of clash with Bootstrap
+	label:
+		font-weight: bold
+		margin-right: 0.15em
+		&:after:
+			content: ": "
+
+.indicator:
+	.title:
+		font-weight: bold
+		font-size:   120%
+// EOF - vim: ts=4 sw=4 noet 

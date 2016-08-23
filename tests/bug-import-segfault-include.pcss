@@ -1,0 +1,118 @@
+// ----------------------------------------------------------------------------
+// Project           : UIS Components
+// ----------------------------------------------------------------------------
+// Author            : FFunction
+// License           : BSD License
+// ----------------------------------------------------------------------------
+// Creation date     : 2016-08-22
+// Last modification : 2016-08-22
+// ----------------------------------------------------------------------------
+
+BASE_FONT             = 14
+PX                    = 1em / $BASE_FONT
+PAD                   = 20   * $PX
+DPI                   = 160  * $PX
+DPCM                  = $DPI / 2.54
+
+COLOR_PAGE_BG         = #FFFFFF
+COLOR_PAGE_TXT        = #202020
+
+COLOR_DIALOG_BG       = #FFFFFF
+FONT_BASE             = "OpenSans", "Open Sans", sans-serif
+FONT_OPEN_SANS        = "OpenSans", "Open Sans", sans-serif
+FONT_ADAMANT          = "Adamant", serif
+
+WEIGHT_REGULAR        = 400
+WEIGHT_SEMI_BOLD      = 600
+WEIGHT_BOLD           = 700
+
+Z_DIALOG               = 20
+Z_CONTENT              = 5
+Z_HIDDEN               = 1
+
+// ----------------------------------------------------------------------------
+//
+// COLORS
+//
+// ----------------------------------------------------------------------------
+
+COLOR_SECTION_01      = #2D63BE
+COLOR_SECTION_02      = #249865
+COLOR_SECTION_03      = #FB6846
+COLOR_SECTION_04      = #A99C56
+COLOR_SECTION_05      = #89A9A9
+
+COLOR_BLACK           = #000000
+COLOR_GREY            = #6E6E6E
+COLOR_JAVA            = #1ACABD
+COLOR_SUN             = #FFA616
+COLOR_TORCH_RED       = #FF0026
+COLOR_PURPLE          = #7500BB
+COLOR_VERDUN_GREEN    = #497C00
+COLOR_BILOBA_FLOWER   = #C795F1
+COLOR_INDOCHINE       = #CA7300
+COLOR_PERSIAN_GREEN   = #009488
+COLOR_CONIFER         = #9EEC48
+
+COLOR_01              = #3379DF
+COLOR_02              = #FFA900
+COLOR_03              = $COLOR_TORCH_RED
+COLOR_04              = #6DC100
+COLOR_05              = #8600D1
+COLOR_06              = $COLOR_JAVA
+
+// ----------------------------------------------------------------------------
+//
+// UNITS
+//
+// ----------------------------------------------------------------------------
+
+@unit pem = 1em / $BASE_FONT
+@unit pad = 10pem
+
+// ----------------------------------------------------------------------------
+//
+// MACROS
+//
+// ----------------------------------------------------------------------------
+
+@macro expand
+	position: absolute
+	top:    0em
+	bottom: 0em
+	right:  0em
+	left:   0em
+
+@macro font delta
+	font-size: $delta * 100%
+	line-height: $BASE_LINE_HEIGHT
+
+@macro triangle width, color
+	width:  0
+	height: 0
+	border-style: solid
+	border-width: 0 $width $width $width
+	border-color: transparent transparent $color transparent
+
+@macro rounded radius
+	display:       block
+	margin-top:    0 - $radius
+	margin-left:   0 - $radius
+	border-radius: $radius
+	width:         $radius * 2
+	height:        $radius * 2
+	background:    #FFFFFF00
+
+@macro icon width, height, image
+	width:  $width  * 1pem
+	height: $height * 1pem
+	background-image: $image
+
+@macro cleared
+	&:after:
+		content: ""
+		display: block
+		height: 0em
+		clear: both
+
+// EOF - vim: ts=4 sw=4 noet
