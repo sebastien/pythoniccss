@@ -712,6 +712,7 @@ class PCSSProcessor(Processor):
 		if not os.path.exists(path) and self.path:
 			path = os.path.join(os.path.dirname(os.path.abspath(self.path)), path)
 		assert os.path.exists(path), "@include {0}: file does not exist.".format(path)
+		# FIXME: Grammar is not really re-entrant
 		result = self.grammar.parsePath(path)
 		self.process(result.match)
 
