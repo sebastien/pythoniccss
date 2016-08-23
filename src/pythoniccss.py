@@ -685,7 +685,7 @@ class PCSSProcessor(Processor):
 
 	def onMacroInvocation( self, match, name, arguments ):
 		if self._mode == "macro":
-			self._macro.append(lambda: self.onMacroInvocation(match, name, arguments))
+			self._macro.append(lambda self:self.onMacroInvocation(match, name, arguments))
 			return None
 		if name not in self._macros:
 			raise Exception("Macro not defined: {0}, got {1}".format(name, self._macros.keys()))
@@ -698,7 +698,7 @@ class PCSSProcessor(Processor):
 		self.variables.append(scope)
 		self._evaluated.append({})
 		for line in self._macros[name][1]:
-			line()
+			line(self)
 		self.variables.pop()
 		self._evaluated.pop()
 
@@ -720,6 +720,7 @@ class PCSSProcessor(Processor):
 		match  = g.parsePath(path)
 		result = subprocessor.process(match.match)
 		self.variables[-1].update(subprocessor.variables[0])
+		self._evaluated[-1].update(subprocessor._evaluated[0])
 		self.units.update(subprocessor.units)
 		self._macros.update(subprocessor._macros)
 
@@ -752,7 +753,7 @@ class PCSSProcessor(Processor):
 	def onAssignment( self, match, name, values, important ):
 		values = values or ()
 		if self._mode == "macro":
-			self._macro.append(lambda: self.onAssignment(match, name, values, important))
+			self._macro.append(lambda self: self.onAssignment(match, name, values, important))
 			return None
 		if self._header:
 			self._write(self._header)
@@ -785,7 +786,7 @@ class PCSSProcessor(Processor):
 		if indent == 0:
 			self._mode   = None
 		elif self._mode == "macro":
-			self._macro.append(lambda: self.onBlock(match, indent + self.indent))
+			self._macro.append(lambda self: self.onBlock(match, indent + self.indent))
 			return None
 		self.indent = indent
 		self._writeFooter()
@@ -808,7 +809,7 @@ class PCSSProcessor(Processor):
 		if indent == 0:
 			self._mode  = None
 		elif self._mode == "macro":
-			self._macro.append(lambda: self.onSpecialBlock(indent, match, type))
+			self._macro.append(lambda self: self.onSpecialBlock(indent, match, type))
 			return None
 		self._writeFooter()
 		type, filter, name, params = type
