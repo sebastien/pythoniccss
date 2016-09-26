@@ -6,7 +6,7 @@
 # License           : BSD License
 # -----------------------------------------------------------------------------
 # Creation date     : 14-Jul-2013
-# Last modification : 22-Aug-2016
+# Last modification : 26-Sep-2016
 # -----------------------------------------------------------------------------
 
 from __future__ import print_function
@@ -18,7 +18,7 @@ try:
 except ImportError:
 	reporter = None
 
-VERSION = "0.3.1"
+VERSION = "0.3.2"
 LICENSE = "http://ffctn.com/doc/licenses/bsd"
 IS_PYTHON3 = sys.version_info[0] >= 3
 if IS_PYTHON3:
@@ -663,13 +663,12 @@ class PCSSProcessor(Processor):
 		# tail is [[s.COMMA, s.Selection], ...]
 		tail   = [_[1] for _ in tail or [] if _[1]]
 		scopes = [head] + tail if tail else [head]
-
-		# print "onSelectionList: head=", head
-		# print "onSelectionList: tail=", tail
-		# print " tail.value", match[1].value
-		# print " tail.process", self.process(match[1])
-		# print " tail.value", match[1].value
-		# print "onSelectionList: scopes=", scopes
+		# print ("onSelectionList: head=", head)
+		# print ("onSelectionList: tail=", tail)
+		# print (" tail.value", match[1].value)
+		# print (" tail.process", self.process(match[1]))
+		# print (" tail.value", match[1].value)
+		# print ("onSelectionList: scopes=", scopes)
 		# We want to epxand the `&` in the scopes
 		scopes = self._expandScopes(scopes)
 		# We push the expanded scopes in the scopes stack
@@ -695,6 +694,7 @@ class PCSSProcessor(Processor):
 		assert len(arguments) <= len(params), "Too many arguments given to macro: {0}, {1} given, expecting {2}".format(name, arguments, params)
 		for i,a in enumerate(arguments):
 			scope[params[i]] = ["V", a]
+		scope["indent"] = ("V", (self.indent, None))
 		self.variables.append(scope)
 		self._evaluated.append({})
 		for line in self._macros[name][1]:
@@ -780,13 +780,13 @@ class PCSSProcessor(Processor):
 		else:
 			return self._write("{0}: {1}{2};".format(name, " ".join(evalues), suffix), indent=1)
 
-	def onBlock( self, match, indent ):
-		indent = indent or 0
-		delta  = indent - len(self.scopes)
+	def onBlock( self, match, indent, delta=-1 ):
+		indent = delta + self.resolve("indent")[0] if indent is None else (indent or 0)
 		if indent == 0:
 			self._mode   = None
 		elif self._mode == "macro":
-			self._macro.append(lambda self: self.onBlock(match, indent + self.indent))
+			delta = indent - len(self.scopes)
+			self._macro.append(lambda self: self.onBlock(match, None, delta))
 			return None
 		self.indent = indent
 		self._writeFooter()

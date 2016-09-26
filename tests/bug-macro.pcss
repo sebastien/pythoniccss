@@ -1,0 +1,17 @@
+@macro placeholder text
+	display: inline-block
+
+@macro valuefield attr, placeholder
+	&.one:after:
+		content: attr($attr)
+	&.two:after:
+		display: none
+	&.three:after:
+		display: none
+		&.three.A:
+			background: red
+
+operator:
+	pouet:
+		valuefield(value,"operator‥")
+
