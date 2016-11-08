@@ -1081,11 +1081,12 @@ def run(args):
 		description = "Compiles PythonicCSS files to CSS"
 	)
 	oparser.add_argument("files", metavar="FILE", type=str, nargs='*', help='The .pcss files to parse')
-	oparser.add_argument("--report",  dest="report",  action="store_true", default=False)
 	oparser.add_argument("-v", "--verbose",  dest="verbose",  action="store_true", default=False)
+	oparser.add_argument("-o", "--output",  type=str,  dest="output", default=None)
+	oparser.add_argument("--report",  dest="report",  action="store_true", default=False)
 	oparser.add_argument("--stats",    dest="stats", action="store_true", default=False)
 	oparser.add_argument("--symbols",  dest="symbols", action="store_true", default=False)
-	oparser.add_argument("-o", "--output",  type=str,  dest="output", default=None)
+	oparser.add_argument("--json",  dest="json", action="store_true", default=None)
 	# We create the parse and register the options
 	args = oparser.parse_args(args=args)
 	# p = TreeWriter(output=sys.stdout)
@@ -1111,20 +1112,23 @@ def run(args):
 			stats.report(getGrammar(), output)
 		else:
 			if result.isSuccess():
-				try:
-					p.process(result.match, path)
-					process_time = time.time()
-					if args.stats:
-						parse_d   = parse_time - start_time
-						process_d = process_time  - start_time
-						parse_p   = 100.0 * parse_d   / (parse_d + process_d)
-						process_p = 100.0 * process_d / (parse_d + process_d)
-						reporter.info("Parsing time    {0:0.4f}s {1:0.0f}%".format(parse_d,   parse_p))
-						reporter.info("Processing time {0:0.4f}s {1:0.0f}%".format(process_d, process_p))
-				except HandlerException as e:
-					reporter.error(e)
-					for _ in e.context:
-						reporter.warn(_)
+				if args.json:
+					result.toJSON()
+				else:
+					try:
+						p.process(result.match, path)
+						process_time = time.time()
+						if args.stats:
+							parse_d   = parse_time - start_time
+							process_d = process_time  - start_time
+							parse_p   = 100.0 * parse_d   / (parse_d + process_d)
+							process_p = 100.0 * process_d / (parse_d + process_d)
+							reporter.info("Parsing time    {0:0.4f}s {1:0.0f}%".format(parse_d,   parse_p))
+							reporter.info("Processing time {0:0.4f}s {1:0.0f}%".format(process_d, process_p))
+					except HandlerException as e:
+						reporter.error(e)
+						for _ in e.context:
+							reporter.warn(_)
 			else:
 				msg = "Parsing of `{0}` failed at line:{1}#{2}".format(path, result.line, result.offset)
 				reporter.error(msg)
