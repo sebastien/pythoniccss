@@ -1110,7 +1110,7 @@ def run(args):
 			stats = result.stats
 			stats.report(getGrammar(), output)
 		else:
-			if result.isComplete():
+			if result.isSuccess():
 				try:
 					p.process(result.match, path)
 					process_time = time.time()

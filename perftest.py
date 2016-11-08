@@ -64,6 +64,9 @@ def walk_python(r):
 	return len(result)
 
 def walk_process(r):
+	"""This bypasses the wrapping of objects using the native API wrapper."""
+	# NOTE: This is by far the fastest as we don't have to wrap much and
+	# are directly accessing the structures through ctypes.
 	def walk( match, step, matches ):
 		matches    = ctypes.cast(matches, ctypes.py_object).value
 		match      = ctypes.cast(match, C.TYPES["Match*"])
@@ -88,14 +91,15 @@ def walk_process(r):
 	LIB.symbols.Match__walk(r.match._cobjectPointer, callback, 0, c_context)
 	return len(context["matches"])
 
-
-
 if __name__ == "__main__":
-	r = parse(sys.argv[1] if len(sys.argv) > 1 else "moneyball.pcss")
+	r = parse(sys.argv[1])
 	f = sorted([(_[0],_[1]) for _ in locals().items() if _[0].startswith("walk_")])
-	for n,c in f:
-		t = time.time()
-		v = c(r)
-		print ("{0:30s}={1:-10d} {2:0.3f}s".format(n, v, time.time() - t))
+	def test():
+		for n,c in f:
+			t = time.time()
+			v = c(r)
+			print ("{0:30s}={1:-10d} {2:0.3f}s".format(n, v, time.time() - t))
+	# import cProfile
+	# cProfile.run('test()')
 
 # EOF
