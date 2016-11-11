@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python2.7
 # encoding=utf8 ---------------------------------------------------------------
 # Project           : PythonicCSS
 # -----------------------------------------------------------------------------
@@ -55,7 +55,7 @@ def doCheckIndent(context, match):
 	return True
 	v          = context.getVariables()
 	tab_match  = context.getVariables().get("tabs")
-	tab_indent = len(tab_match.group())
+	tab_indent = len(tab_match[0])
 	req_indent = v.get("requiredIndent") or 0
 	return tab_indent == req_indent
 
@@ -245,6 +245,14 @@ class ProcessingException(Exception):
 			msg = "Line {0}, char {1}: {2}".format(l, c, msg)
 		return msg
 
+class XXXPCSSProcessor(Processor):
+
+	def __init__( self, grammar=None, output=sys.stdout ):
+		Processor.__init__(self, grammar or getGrammar())
+
+	def onSource( self, match ):
+		print ("SOURCE", match)
+
 class PCSSProcessor(Processor):
 	"""Replaces some of the grammar's symbols processing functions. This is
 	the main code that converts the parsing's recognized data to the output
@@ -364,9 +372,9 @@ class PCSSProcessor(Processor):
 		self.output = output
 		self.path   = None
 
-	def process( self, result, path=False ):
+	def _process( self, match, path=False ):
 		if path is not False: self.path = path
-		return super(PCSSProcessor, self).process(result)
+		return self.process(match)
 
 	def reset( self ):
 		"""Resets the state of the processor. To be called inbetween parses."""
@@ -478,11 +486,16 @@ class PCSSProcessor(Processor):
 	# GRAMMAR RULES
 	# ==========================================================================
 
+
+	def onSource( self, match ):
+		print ("SOURCE", match)
+		return "WASDAS"
+
 	def onURL(self, match ):
-		return ((match.group(0), None), "S")
+		return ((match[0], None), "S")
 
 	def onCOLOR_HEX(self, match ):
-		c = (match.group(1))
+		c = (match[1])
 		while len(c) < 6: c += "0"
 		r = int(c[0:2], 16)
 		g = int(c[2:4], 16)
@@ -494,10 +507,10 @@ class PCSSProcessor(Processor):
 			return [(r,g,b), "C"]
 
 	def onMETHOD_NAME(self, match ):
-		return match.group()
+		return match[0]
 
 	def onCOLOR_RGB(self, match ):
-		c = match.group(1).split(",")
+		c = match[1].split(",")
 		if len(c) == 3:
 			c = [[int(_) for _ in c], "C"]
 		else:
@@ -505,22 +518,22 @@ class PCSSProcessor(Processor):
 		return c
 
 	def onREFERENCE(self, match):
-		return (match.group(1), "R")
+		return (match[1], "R")
 
 	def onCSS_PROPERTY(self, match ):
-		return match.group()
+		return match[0]
 
 	def onSTRING_BQ(self, match ):
-		return [self._stringEscapeFix(match.group(1)), '']
+		return [self._stringEscapeFix(match[1]), '']
 
 	def onSTRING_DQ(self, match ):
-		return [self._stringEscapeFix(match.group(1)), '"']
+		return [self._stringEscapeFix(match[1]), '"']
 
 	def onSTRING_SQ(self, match ):
-		return [self._stringEscapeFix(match.group(1)), "'"]
+		return [self._stringEscapeFix(match[1]), "'"]
 
 	def onSTRING_UQ(self, match ):
-		return [match.group(), None]
+		return [match[0], None]
 
 	def onPERCENTAGE(self, match ):
 		if self._mode == "macro":
@@ -528,8 +541,9 @@ class PCSSProcessor(Processor):
 			return None
 		self._write(match[0] + " {")
 
-	def onCheckIndent(self, match, tabs):
-		return len(tabs) if tabs else 0
+	def onCheckIndent(self, match ):
+		return True
+		# return len(tabs) if tabs else 0
 
 	def onString( self, match ):
 		value = self.process(match[0])
@@ -1039,7 +1053,8 @@ class PCSSProcessor(Processor):
 		elif isinstance(v, unicode):
 			return v.encode("utf-8")
 		else:
-			raise ProcessingException("Value string conversion not implemented: {0}".format(value))
+			return print ("VALUE")
+			#raise ProcessingException("Value string conversion not implemented: {0}".format(value))
 
 # -----------------------------------------------------------------------------
 #
@@ -1073,6 +1088,9 @@ def convert(path):
 
 def run(args):
 	"""Processes the command line arguments."""
+	import _chi2
+	print ("MOD", _chi2)
+	return
 	USAGE = "pythoniccss FILE..."
 	if reporter: reporter.install(reporter.StderrReporter())
 	if type(args) not in (type([]), type(())): args = [args]
@@ -1104,7 +1122,7 @@ def run(args):
 			reporter.info("Symbol #{0:10s} = {1}".format(str(s.id), s))
 	for path in args.files:
 		start_time = time.time()
-		result = parse(path)
+		result = g.parsePath(path)
 		parse_time = time.time()
 		if args.report:
 			output.write("Report for : {0}\n".format(path))
@@ -1115,20 +1133,23 @@ def run(args):
 				if args.json:
 					result.toJSON()
 				else:
-					try:
-						p.process(result.match, path)
-						process_time = time.time()
-						if args.stats:
-							parse_d   = parse_time - start_time
-							process_d = process_time  - start_time
-							parse_p   = 100.0 * parse_d   / (parse_d + process_d)
-							process_p = 100.0 * process_d / (parse_d + process_d)
-							reporter.info("Parsing time    {0:0.4f}s {1:0.0f}%".format(parse_d,   parse_p))
-							reporter.info("Processing time {0:0.4f}s {1:0.0f}%".format(process_d, process_p))
-					except HandlerException as e:
-						reporter.error(e)
-						for _ in e.context:
-							reporter.warn(_)
+					# FIXME: Should set path
+					result = p.process(result.match)
+					print ("RESULT", result)
+					return result
+					# print ("RESULT", result)
+					# process_time = time.time()
+					# if args.stats:
+					# 	parse_d   = parse_time - start_time
+					# 	process_d = process_time  - start_time
+					# 	parse_p   = 100.0 * parse_d   / (parse_d + process_d)
+					# 	process_p = 100.0 * process_d / (parse_d + process_d)
+					# 	reporter.info("Parsing time    {0:0.4f}s {1:0.0f}%".format(parse_d,   parse_p))
+					# 	reporter.info("Processing time {0:0.4f}s {1:0.0f}%".format(process_d, process_p))
+					# except HandlerException as e:
+					# 	reporter.error(e)
+					# 	for _ in e.context:
+					# 		reporter.warn(_)
 			else:
 				msg = "Parsing of `{0}` failed at line:{1}#{2}".format(path, result.line, result.offset)
 				reporter.error(msg)
