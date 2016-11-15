@@ -6,7 +6,7 @@
 # License           : BSD License
 # -----------------------------------------------------------------------------
 # Creation date     : 14-Jul-2013
-# Last modification : 26-Sep-2016
+# Last modification : 15-Nov-2016
 # -----------------------------------------------------------------------------
 
 from __future__ import print_function
@@ -245,14 +245,6 @@ class ProcessingException(Exception):
 			msg = "Line {0}, char {1}: {2}".format(l, c, msg)
 		return msg
 
-class XXXPCSSProcessor(Processor):
-
-	def __init__( self, grammar=None, output=sys.stdout ):
-		Processor.__init__(self, grammar or getGrammar())
-
-	def onSource( self, match ):
-		print ("SOURCE", match)
-
 class PCSSProcessor(Processor):
 	"""Replaces some of the grammar's symbols processing functions. This is
 	the main code that converts the parsing's recognized data to the output
@@ -439,6 +431,7 @@ class PCSSProcessor(Processor):
 			else:
 				return v
 		elif e[0] == "O":
+			# O = Operation
 			o  = e[1]
 			lv = self.evaluate(e[2], unit, name=name, prefix=prefix)
 			rv = self.evaluate(e[3], unit, name=name, prefix=prefix)
@@ -452,9 +445,10 @@ class PCSSProcessor(Processor):
 				r = self.OPERATIONS[o](lv, rv, lu)
 				return r
 		elif e[0] == "I":
+			# I = Invocation
 			_, scope, method, args = e
 			r = ""
-			if scope:  r += self._valueAsString(scope[1])
+			if scope:  r += self._valueAsString(scope)
 			if method: r += "." + method
 			# TODO: Should detect the scope type and apply the corresponding method
 			r += "({0})".format(",".join((self._valueAsString(_) for _ in args or [])))
@@ -485,11 +479,6 @@ class PCSSProcessor(Processor):
 	# ==========================================================================
 	# GRAMMAR RULES
 	# ==========================================================================
-
-
-	def onSource( self, match ):
-		print ("SOURCE", match)
-		return "WASDAS"
 
 	def onURL(self, match ):
 		return ((match[0], None), "S")
@@ -546,14 +535,11 @@ class PCSSProcessor(Processor):
 		# return len(tabs) if tabs else 0
 
 	def onString( self, match ):
-		value = self.process(match[0])
+		value = self.process(match)
 		return (value, "S")
 
-	# def onRawString( self, match ):
-	# 	return (self.process(match.value), "R")
-
 	def onValue( self, match ):
-		value = ["V", self.process(match[0])]
+		value = ["V", self.process(match)]
 		#assert isinstance(value, tuple) or isinstance(value, list) and len(value) == 2, "onValue: value expected to be `(V, (value, type))`, got {1} from {2}".format(value, match)
 		return value
 
@@ -576,13 +562,9 @@ class PCSSProcessor(Processor):
 		expr = self.process(match[1])
 		return ["O", op, None, expr]
 
-	def onSuffixes( self, match ):
-		return self.process(match[0])
-
 	def onPrefix( self, match ):
-		child          = match[0]
-		result         = self.process(child)
-		result         = ["(", result[1]] if len(result) == 3 else result
+		result  = match.value
+		result = ["(", result[1]] if len(result) == 3 else result
 		return result
 
 	def onExpression( self, match ):
@@ -610,24 +592,34 @@ class PCSSProcessor(Processor):
 				res = ["O", rop, ["O", op, a, b], c]
 		return res
 
-	def onExpressionList( self, match, head, tail=None ):
+	def onExpressionList( self, match, tail=None ):
+		head =  self.process(match["head"])
 		if tail:
 			return [["L", [head] + [_[1] for _ in tail]]]
 		else:
 			return [head]
 
-	def onAttribute( self, match, name, value ):
+	def onAttribute( self, match ):
+		name  =  self.process(match["name"])
+		value =  self.process(match["value"])
 		return "[{0}{1}{2}]".format(name, value[0] if value else "", value[1] if value else "")
 
-	def onAttributes( self, match, head, tail ):
+	def onAttributes( self, match ):
+		head =  self.process(match["head"])
+		tail =  self.process(match["tail"])
 		assert not tail
 		result = "".join([head] + (tail or []))
 		return  result
 
-	def onSelector( self, match, scope, nid,  nclass, attributes, suffix ):
+	def onSelector( self, match ):
 		"""Selectors are returned as tuples `(scope, id, class, attributes, suffix)`.
 		We need to keep this structure as we need to be able to expand the `&`
 		reference."""
+		scope      =  self.process(match["scope"])
+		nid        =  self.process(match["nid"])
+		nclass     =  self.process(match["nclass"])
+		attributes =  self.process(match["attributes"])
+		suffix     =  self.process(match["suffix"])
 		scope      = scope      or   ""
 		nid        = nid if nid else ""
 		suffix     = "".join(suffix) if suffix else ""
@@ -693,10 +685,14 @@ class PCSSProcessor(Processor):
 	def onSpecialDeclaration( self, match, type, filter, name, parameters ):
 		return (type, filter, name, parameters)
 
-	def onMacroDeclaration( self, match, name, parameters ):
+	def onMacroDeclaration( self, match ):
+		name       = self.process(match["name"])
+		parameters = self.process(match["parameters"])
 		return ("@macro", None, name, parameters)
 
-	def onMacroInvocation( self, match, name, arguments ):
+	def onMacroInvocation( self, match ):
+		name      = self.process(match["name"])
+		arguments = self.process(match["arguments"])
 		if self._mode == "macro":
 			self._macro.append(lambda self:self.onMacroInvocation(match, name, arguments))
 			return None
@@ -715,6 +711,12 @@ class PCSSProcessor(Processor):
 			line(self)
 		self.variables.pop()
 		self._evaluated.pop()
+
+	def onNODE( self, match ):
+		return match[0]
+
+	def onNUMBER( self, match ):
+		return match[0]
 
 	def onNumber( self, match, value, unit ):
 		value = float(value) if "." in value else int(value)
@@ -765,6 +767,9 @@ class PCSSProcessor(Processor):
 		return None
 
 	def onAssignment( self, match, name, values, important ):
+		name      = self.process(match["name"])
+		values    = self.process(match["values"])
+		important = self.process(match["important"])
 		values = values or ()
 		if self._mode == "macro":
 			self._macro.append(lambda self: self.onAssignment(match, name, values, important))
@@ -833,7 +838,7 @@ class PCSSProcessor(Processor):
 		self._footer = "}"
 
 	def onSource( self, match ):
-		result = [self.process(_) for _ in match]
+		result = self.process(match)
 		if self._footer:
 			self._write(self._footer)
 			self._footer = None
@@ -997,6 +1002,7 @@ class PCSSProcessor(Processor):
 	def _valueAsString( self, value ):
 		"""Converts a value `(value:any, type:char)` into its CSS string
 		representation."""
+		if isinstance(value, str) or isinstance(value,unicode): return value
 		assert isinstance(value, list) or isinstance(value, tuple) and len(value) == 2, "{0}: Expected `(type, value)`, got {1}".format(self._valueAsString, repr(value))
 		v, u = value ; u = u or ""
 		# == UNITS
@@ -1088,9 +1094,6 @@ def convert(path):
 
 def run(args):
 	"""Processes the command line arguments."""
-	import _chi2
-	print ("MOD", _chi2)
-	return
 	USAGE = "pythoniccss FILE..."
 	if reporter: reporter.install(reporter.StderrReporter())
 	if type(args) not in (type([]), type(())): args = [args]
