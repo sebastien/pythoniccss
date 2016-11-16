@@ -6,19 +6,20 @@
 # License           : BSD License
 # -----------------------------------------------------------------------------
 # Creation date     : 14-Jul-2013
-# Last modification : 15-Nov-2016
+# Last modification : 16-Nov-2016
 # -----------------------------------------------------------------------------
 
 from __future__ import print_function
 import re, os, sys, argparse, json, copy, io, time
 from   libparsing import *
+from   io import StringIO
 
 try:
 	import reporter
 except ImportError:
 	reporter = None
 
-VERSION = "0.3.2"
+VERSION = "0.4.0"
 LICENSE = "http://ffctn.com/doc/licenses/bsd"
 IS_PYTHON3 = sys.version_info[0] >= 3
 if IS_PYTHON3:
@@ -474,6 +475,7 @@ class PCSSProcessor(Processor):
 				return self._evaluated[level][cname]
 			else:
 				v = self.evaluate(variables[name], name=propertyName, prefix=prefix)
+				print ("EVALUATING", variables[name], "name=",propertyName, "value=", v)
 				self._evaluated[level][cname] = v
 				return v
 
@@ -481,14 +483,8 @@ class PCSSProcessor(Processor):
 	# GRAMMAR RULES
 	# ==========================================================================
 
-	def onINFIX_OPERATOR( self, match ):
-		return self.process(match)[0]
-
-	def onSELECTION_OPERATOR( self, match ):
-		return self.process(match)[0]
-
-	def onUNIT(self, match ):
-		return self.process(match)[0]
+	def processToken(self, result):
+		return result[0]
 
 	def onURL(self, match ):
 		return ((self.process(match)[0], None), "S")
@@ -505,9 +501,6 @@ class PCSSProcessor(Processor):
 		else:
 			return [(r,g,b), "C"]
 
-	def onMETHOD_NAME(self, match ):
-		return match[0]
-
 	def onCOLOR_RGB(self, match ):
 		c = self.process(match)[1].split(",")
 		if len(c) == 3:
@@ -518,9 +511,6 @@ class PCSSProcessor(Processor):
 
 	def onREFERENCE(self, match):
 		return (self.process(match)[1], "R")
-
-	def onCSS_PROPERTY(self, match ):
-		return self.process(match)[0]
 
 	def onSTRING_BQ(self, match ):
 		return [self._stringEscapeFix(self.process(match)[1]), '']
@@ -628,12 +618,12 @@ class PCSSProcessor(Processor):
 		"""Selectors are returned as tuples `(scope, id, class, attributes, suffix)`.
 		We need to keep this structure as we need to be able to expand the `&`
 		reference."""
-		scope      =  self.process(match["scope"])[0]
+		scope      =  self.process(match["scope"])
 		nid        =  self.process(match["nid"])
 		nclass     =  self.process(match["nclass"])
 		attributes =  self.process(match["attributes"])
 		suffix     =  self.process(match["suffix"])
-		scope      = scope      or   ""
+		scope      = scope[0] if scope else ""
 		nid        = nid if nid else ""
 		suffix     = "".join(suffix) if suffix else ""
 		nclass     = "".join(nclass) if nclass else ""
@@ -725,13 +715,6 @@ class PCSSProcessor(Processor):
 		self.variables.pop()
 		self._evaluated.pop()
 
-	def onNODE( self, match ):
-		v = self.process(match)
-		return v[0]
-
-	def onNUMBER( self, match ):
-		v = self.process(match)
-		return v[0]
 
 	def onNumber( self, match, value, unit ):
 		value = float(value) if "." in value else int(value)
@@ -758,8 +741,6 @@ class PCSSProcessor(Processor):
 	def onDeclaration( self, match, decorator, name, value ):
 		assert len(value) == 1
 		decorator = decorator[0] if decorator else None
-		value = value[0]
-		name  = name[0]
 		self._mode = None
 		if not decorator:
 			name = name
@@ -785,13 +766,15 @@ class PCSSProcessor(Processor):
 		return None
 
 	def onAssignment( self, match, name, values, important ):
-
 		name      = self.process(match["name"])
 		values    = self.process(match["values"])
 		important = self.process(match["important"])
+		return self._onAssignment(name, values, important, match)
+
+	def _onAssignment( self, name, values, important, match=None ):
 		values = values or ()
 		if self._mode == "macro":
-			self._macro.append(lambda self: self.onAssignment(match, name, values, important))
+			self._macro.append(lambda self: self._onAssignment(name, values, important))
 			return None
 		if self._header:
 			self._write(self._header)
@@ -1079,8 +1062,7 @@ class PCSSProcessor(Processor):
 		elif isinstance(v, unicode):
 			return v.encode("utf-8")
 		else:
-			return print ("VALUE")
-			#raise ProcessingException("Value string conversion not implemented: {0}".format(value))
+			raise ProcessingException("Value string conversion not implemented: {0}".format(value))
 
 # -----------------------------------------------------------------------------
 #
@@ -1102,8 +1084,8 @@ def parseString(text):
 def convert(path):
 	result = parse(path)
 	if result.status == "S":
-		s = StringIO.StringIO()
-		p = Processor(output=s)
+		s = StringIO()
+		p = PCSSProcessor(output=s)
 		p.process(result.match)
 		s.seek(0)
 		v = s.getvalue()
