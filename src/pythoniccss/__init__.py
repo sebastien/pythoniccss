@@ -87,7 +87,7 @@ def grammar(g=None):
 	s = g.symbols
 	g.token   ("SPACE",            "[ ]+")
 	g.token   ("TABS",             "\t*")
-	g.token   ("COMMENT",          "[ \t]*\//[^\n]*")
+	g.token   ("COMMENT",          "[ \t]*(//|#\s+)[^\n]*")
 	g.token   ("EOL",              "[ ]*\n(\s*\n)*")
 	g.token   ("NUMBER",           "-?(0x)?[0-9]+(\.[0-9]+)?")
 	g.token   ("ATTRIBUTE",        "[a-zA-Z\-_][a-zA-Z0-9\-_]*")
@@ -401,7 +401,7 @@ class PCSSProcessor(Processor):
 		"""
 		if isinstance(e,list) and not isinstance(e[0], str):
 			return [[self.evaluate(_, unit, name, resolve, prefix) for _ in e], "l"]
-		if e[0] == "L":
+		elif e[0] == "L":
 			return [[self.evaluate(_, unit, name, resolve, prefix) for _ in e[1]], "L"]
 		elif e[0] == "V":
 			assert isinstance(e, tuple) or isinstance(e, list) and len(e) == 2, "evaluate: value expected to be `(V, (value, type))`, got {1}".format(e)
@@ -475,7 +475,6 @@ class PCSSProcessor(Processor):
 				return self._evaluated[level][cname]
 			else:
 				v = self.evaluate(variables[name], name=propertyName, prefix=prefix)
-				print ("EVALUATING", variables[name], "name=",propertyName, "value=", v)
 				self._evaluated[level][cname] = v
 				return v
 
@@ -681,8 +680,11 @@ class PCSSProcessor(Processor):
 		# We want to epxand the `&` in the scopes
 		scopes = self._expandScopes(scopes)
 		# We push the expanded scopes in the scopes stack
-		self._pushScope(scopes)
-		self._header = ",\n".join((self._selectionAsString(_) for _ in self.scopes[-1])) + " {"
+		if scopes!= [None]:
+			self._pushScope(scopes)
+			self._header = u",\n".join((self._selectionAsString(_) for _ in self.scopes[-1])) + " {"
+		else:
+			self._header = u""
 		return self._header
 
 	def onSpecialDeclaration( self, match, type, filter, name, parameters ):
@@ -740,8 +742,9 @@ class PCSSProcessor(Processor):
 
 	def onDeclaration( self, match, decorator, name, value ):
 		assert len(value) == 1
-		decorator = decorator[0] if decorator else None
+		decorator  = decorator if decorator else None
 		self._mode = None
+		value      = value[0]
 		if not decorator:
 			name = name
 			self.variables[-1][name] = value
@@ -754,14 +757,13 @@ class PCSSProcessor(Processor):
 		return None
 
 	def onDirective( self, match, directive, value ):
-		directive = directive[0]
 		if directive == "@module":
 			self.module  = value
 		else:
 			raise NotImplementedError
 		return None
 
-	def onCSSDirective( self, match, directive, value=None ):
+	def onCSSDirective( self, match, directive, value ):
 		self._write(directive[1:] + value + ";")
 		return None
 
@@ -786,7 +788,7 @@ class PCSSProcessor(Processor):
 			evalues = [self._valueAsString(self.evaluate(_, name=name)) for _ in values]
 		except ProcessingException as e:
 			if reporter:
-				reporter.error("{0} at  offset {1}:".format(e, match.range()))
+				reporter.error("{0} at  offset {1}:".format(e, match.range))
 			raise e
 		if name in self.PREFIXABLE_PROPERTIES:
 			res = []
@@ -857,7 +859,7 @@ class PCSSProcessor(Processor):
 			self._footer = None
 
 	def _write( self, line=None, indent=0 ):
-		line = "  " * indent + line + "\n"
+		line = u"  " * indent + line.decode("utf8") + u"\n"
 		self.output.write(line)
 		return line
 
@@ -866,6 +868,7 @@ class PCSSProcessor(Processor):
 	# ==========================================================================
 
 	def _pushScope( self, scopes ):
+		assert scopes and scopes[0] != None
 		self.scopes.append(scopes)
 		self.variables.append({})
 		self._evaluated.append({})
@@ -908,7 +911,7 @@ class PCSSProcessor(Processor):
 						res.append(full_scope[0:-1] + merged)
 				else:
 					for full_scope in parent_scopes:
-						res.append(full_scope + [" "] + scope)
+						res.append(full_scope or [] + [" "] + scope)
 			else:
 				res.append(scope)
 		return res
@@ -1037,7 +1040,7 @@ class PCSSProcessor(Processor):
 		elif u == "S":
 			s,q = v
 			if q:
-				return q + s.encode("utf8") + q
+				return q + s.decode("utf8").encode("utf8") + q
 			else:
 				return s.encode("utf8")
 		# == VALUES
@@ -1086,7 +1089,7 @@ def convert(path):
 	if result.status == "S":
 		s = StringIO()
 		p = PCSSProcessor(output=s)
-		p.process(result.match)
+		p._process(result.match, path)
 		s.seek(0)
 		v = s.getvalue()
 		s.close()
@@ -1134,12 +1137,14 @@ def run(args):
 			stats = result.stats
 			stats.report(getGrammar(), output)
 		else:
-			if result.isSuccess():
+			if result is None:
+				reporter.error("Could not find path: {0}".format(path))
+			elif result.isSuccess():
 				if args.json:
 					result.toJSON()
 				else:
 					# FIXME: Should set path
-					result = p.process(result.match)
+					result = p._process(result.match, path)
 					return result
 					# print ("RESULT", result)
 					# process_time = time.time()

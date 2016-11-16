@@ -1,0 +1,32 @@
+#!/usr/bin/python
+#encoding: utf8
+
+"""
+Tries to parse every PCSS test file (`test/*.pcss`) and then compares to
+the expected result.
+"""
+
+import os, sys, glob
+BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(BASE, "src"))
+import pythoniccss
+try:
+	import reporter
+	logging = reporter.bind("run-tests")
+except:
+	import logging
+
+# Get the test files
+tests = tuple(sorted(glob.glob("test/*.pcss")))
+n     = len(tests)
+
+# Do a first parsing pass
+for i,test in enumerate(tests):
+	name = os.path.basename(test)
+	try:
+		result = pythoniccss.convert(test)
+		logging.info("[{1:3d}/{2:3d}] {0} success!".format(name, i, n))
+	except Exception as e:
+		logging.error("[{2:3d}/{3:3d}] {0} failed: {1}".format(name, e, i, n))
+
+# EOF - vim: syntax=python ts=4 sw=4 noet
