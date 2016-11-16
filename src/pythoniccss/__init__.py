@@ -363,6 +363,7 @@ class PCSSProcessor(Processor):
 		self.reset()
 		self.output = output
 		self.path   = None
+		self.strategy = self.LAZY
 
 	def _process( self, match, path=False ):
 		if path is not False: self.path = path
@@ -397,6 +398,7 @@ class PCSSProcessor(Processor):
 		- operations are encoded as `('O', operator, lvalue, rvalue)`
 		- literals are encoded as `('c', string)`
 		"""
+		print ("EXPRE", e)
 		if isinstance(e,list) and not isinstance(e[0], str):
 			return [[self.evaluate(_, unit, name, resolve, prefix) for _ in e], "l"]
 		if e[0] == "L":
@@ -563,7 +565,7 @@ class PCSSProcessor(Processor):
 		return ["O", op, None, expr]
 
 	def onPrefix( self, match ):
-		result  = match.value
+		result  = self.process(match[0])
 		result = ["(", result[1]] if len(result) == 3 else result
 		return result
 
@@ -713,10 +715,10 @@ class PCSSProcessor(Processor):
 		self._evaluated.pop()
 
 	def onNODE( self, match ):
-		return match[0]
+		return self.process(match)[0]
 
 	def onNUMBER( self, match ):
-		return match[0]
+		return self.process(match)[0]
 
 	def onNumber( self, match, value, unit ):
 		value = float(value) if "." in value else int(value)
@@ -767,6 +769,7 @@ class PCSSProcessor(Processor):
 		return None
 
 	def onAssignment( self, match, name, values, important ):
+
 		name      = self.process(match["name"])
 		values    = self.process(match["values"])
 		important = self.process(match["important"])
@@ -814,7 +817,7 @@ class PCSSProcessor(Processor):
 		self.process(match["selector"])
 		self.process(match["code"])
 
-	def onMacroBlock( self, match, type, indent=None):
+	def onMacroBlock( self, match, type, indent=0):
 		if indent == 0:
 			self._mode  = None
 		assert self._mode != "macro"
