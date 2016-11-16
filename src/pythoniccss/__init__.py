@@ -398,7 +398,6 @@ class PCSSProcessor(Processor):
 		- operations are encoded as `('O', operator, lvalue, rvalue)`
 		- literals are encoded as `('c', string)`
 		"""
-		print ("EXPRE", e)
 		if isinstance(e,list) and not isinstance(e[0], str):
 			return [[self.evaluate(_, unit, name, resolve, prefix) for _ in e], "l"]
 		if e[0] == "L":
@@ -450,7 +449,7 @@ class PCSSProcessor(Processor):
 			# I = Invocation
 			_, scope, method, args = e
 			r = ""
-			if scope:  r += self._valueAsString(scope)
+			if scope:  r += self._valueAsString(scope[1])
 			if method: r += "." + method
 			# TODO: Should detect the scope type and apply the corresponding method
 			r += "({0})".format(",".join((self._valueAsString(_) for _ in args or [])))
@@ -482,11 +481,20 @@ class PCSSProcessor(Processor):
 	# GRAMMAR RULES
 	# ==========================================================================
 
+	def onINFIX_OPERATOR( self, match ):
+		return self.process(match)[0]
+
+	def onSELECTION_OPERATOR( self, match ):
+		return self.process(match)[0]
+
+	def onUNIT(self, match ):
+		return self.process(match)[0]
+
 	def onURL(self, match ):
-		return ((match[0], None), "S")
+		return ((self.process(match)[0], None), "S")
 
 	def onCOLOR_HEX(self, match ):
-		c = (match[1])
+		c = (self.process(match)[1])
 		while len(c) < 6: c += "0"
 		r = int(c[0:2], 16)
 		g = int(c[2:4], 16)
@@ -501,7 +509,7 @@ class PCSSProcessor(Processor):
 		return match[0]
 
 	def onCOLOR_RGB(self, match ):
-		c = match[1].split(",")
+		c = self.process(match)[1].split(",")
 		if len(c) == 3:
 			c = [[int(_) for _ in c], "C"]
 		else:
@@ -509,22 +517,22 @@ class PCSSProcessor(Processor):
 		return c
 
 	def onREFERENCE(self, match):
-		return (match[1], "R")
+		return (self.process(match)[1], "R")
 
 	def onCSS_PROPERTY(self, match ):
-		return match[0]
+		return self.process(match)[0]
 
 	def onSTRING_BQ(self, match ):
-		return [self._stringEscapeFix(match[1]), '']
+		return [self._stringEscapeFix(self.process(match)[1]), '']
 
 	def onSTRING_DQ(self, match ):
-		return [self._stringEscapeFix(match[1]), '"']
+		return [self._stringEscapeFix(self.process(match)[1]), '"']
 
 	def onSTRING_SQ(self, match ):
-		return [self._stringEscapeFix(match[1]), "'"]
+		return [self._stringEscapeFix(self.process(match)[1]), "'"]
 
 	def onSTRING_UQ(self, match ):
-		return [match[0], None]
+		return [self.process(match)[0], None]
 
 	def onPERCENTAGE(self, match ):
 		if self._mode == "macro":
@@ -537,11 +545,11 @@ class PCSSProcessor(Processor):
 		# return len(tabs) if tabs else 0
 
 	def onString( self, match ):
-		value = self.process(match)
+		value = self.process(match[0])
 		return (value, "S")
 
 	def onValue( self, match ):
-		value = ["V", self.process(match)]
+		value = ["V", self.process(match[0])]
 		#assert isinstance(value, tuple) or isinstance(value, list) and len(value) == 2, "onValue: value expected to be `(V, (value, type))`, got {1} from {2}".format(value, match)
 		return value
 
@@ -563,6 +571,9 @@ class PCSSProcessor(Processor):
 		op   = self.process(match[0])
 		expr = self.process(match[1])
 		return ["O", op, None, expr]
+
+	def onSuffixes( self, match ):
+		return self.process(match[0])
 
 	def onPrefix( self, match ):
 		result  = self.process(match[0])
@@ -617,7 +628,7 @@ class PCSSProcessor(Processor):
 		"""Selectors are returned as tuples `(scope, id, class, attributes, suffix)`.
 		We need to keep this structure as we need to be able to expand the `&`
 		reference."""
-		scope      =  self.process(match["scope"])
+		scope      =  self.process(match["scope"])[0]
 		nid        =  self.process(match["nid"])
 		nclass     =  self.process(match["nclass"])
 		attributes =  self.process(match["attributes"])
@@ -715,10 +726,12 @@ class PCSSProcessor(Processor):
 		self._evaluated.pop()
 
 	def onNODE( self, match ):
-		return self.process(match)[0]
+		v = self.process(match)
+		return v[0]
 
 	def onNUMBER( self, match ):
-		return self.process(match)[0]
+		v = self.process(match)
+		return v[0]
 
 	def onNumber( self, match, value, unit ):
 		value = float(value) if "." in value else int(value)
@@ -744,7 +757,9 @@ class PCSSProcessor(Processor):
 
 	def onDeclaration( self, match, decorator, name, value ):
 		assert len(value) == 1
+		decorator = decorator[0] if decorator else None
 		value = value[0]
+		name  = name[0]
 		self._mode = None
 		if not decorator:
 			name = name
@@ -758,6 +773,7 @@ class PCSSProcessor(Processor):
 		return None
 
 	def onDirective( self, match, directive, value ):
+		directive = directive[0]
 		if directive == "@module":
 			self.module  = value
 		else:
@@ -822,6 +838,7 @@ class PCSSProcessor(Processor):
 			self._mode  = None
 		assert self._mode != "macro"
 		type, filter, name, params = type
+		name = name[0] if name else None
 		self._mode   = "macro"
 		self._macro  = []
 		self._macros[name] = [params, self._macro]
@@ -841,7 +858,7 @@ class PCSSProcessor(Processor):
 		self._footer = "}"
 
 	def onSource( self, match ):
-		result = self.process(match)
+		result = [self.process(_) for _ in match]
 		if self._footer:
 			self._write(self._footer)
 			self._footer = None
@@ -1005,7 +1022,7 @@ class PCSSProcessor(Processor):
 	def _valueAsString( self, value ):
 		"""Converts a value `(value:any, type:char)` into its CSS string
 		representation."""
-		if isinstance(value, str) or isinstance(value,unicode): return value
+		# if isinstance(value, str) or isinstance(value,unicode): return value
 		assert isinstance(value, list) or isinstance(value, tuple) and len(value) == 2, "{0}: Expected `(type, value)`, got {1}".format(self._valueAsString, repr(value))
 		v, u = value ; u = u or ""
 		# == UNITS
@@ -1141,7 +1158,6 @@ def run(args):
 				else:
 					# FIXME: Should set path
 					result = p.process(result.match)
-					print ("RESULT", result)
 					return result
 					# print ("RESULT", result)
 					# process_time = time.time()
