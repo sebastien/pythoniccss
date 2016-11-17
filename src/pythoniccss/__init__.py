@@ -157,10 +157,9 @@ class Selection(object):
 	def __str__( self ):
 		res =  " ".join(str(_) for _ in self.elements if _)
 		if self.module:
-			return ".use-" + self.module + " " + res
+			return ".use-" + self.module + ((" " + res) if res else "")
 		else:
 			return res
-
 
 	def __repr__( self ):
 		return "<Selector {0}@{1}>".format(str(self), id(self))
@@ -214,7 +213,7 @@ def grammar(g=None):
 
 	# SEE: http://www.w3schools.com/cssref/css_units.asp
 	#g.token   ("UNIT",             "em|ex|px|pem|cm|mm|in|pt|pc|ch|rem|vh|vmin|vmax|s|deg|rad|grad|ms|Hz|kHz|\%")
-	g.token   ("UNIT",             "[\w]+|\%")
+	g.token   ("UNIT",             "[a-zA-z]+|\%")
 	g.token   ("VARIABLE_NAME",    "[\w_][\w\d_]*")
 	g.token   ("METHOD_NAME",      "[\w_][\w\d_]*")
 	g.token   ("NAME",             "[\w_][\w\d_]*")
@@ -743,7 +742,7 @@ class PCSSProcessor(Processor):
 	def onScope( self, match, head, tail ):
 		"""Updates the current scope and writes the scope selection line."""
 		# tail is [[s.COMMA, s.Selection], ...]
-		scope = [head] if head else None
+		scope = [head or Selection(module=self.module)]
 		if tail:
 			for t in (_[1] for _ in tail if _[1]):
 				scope += [t]
