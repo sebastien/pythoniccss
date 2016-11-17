@@ -1,0 +1,137 @@
+// ----------------------------------------------------------------------------
+// Project           : UIS Components
+// ----------------------------------------------------------------------------
+// Author            : FFunction
+// License           : BSD License
+// ----------------------------------------------------------------------------
+// Creation date     : 2016-08-22
+// Last modification : 2016-10-26
+// ----------------------------------------------------------------------------
+
+
+@module  uiscomponents
+
+
+FONT_SIZE             = 14
+PX                    = 1em / $FONT_SIZE
+PAD                   = 20   * $PX
+DPI                   = 160  * $PX
+DPCM                  = $DPI / 2.54
+
+COLOR_PAGE_BG         = #FFFFFF
+COLOR_PAGE_TXT        = #202020
+
+COLOR_DIALOG_BG       = #FFFFFF
+FONT_BASE             = "OpenSans", "Open Sans", sans-serif
+FONT_OPEN_SANS        = "OpenSans", "Open Sans", sans-serif
+FONT_ADAMANT          = "Adamant", serif
+FONT_ICONS            = "Icons", serif
+
+WEIGHT_REGULAR        = 400
+WEIGHT_SEMI_BOLD      = 600
+WEIGHT_BOLD           = 700
+WEIGHT_EXTRA_BOLD     = 800
+
+Z_CONTROL_MENU         = 21
+Z_DIALOG               = 20
+Z_MENU                 = 20
+Z_OVERLAY              = 20
+Z_TOOLTIP              = 10
+Z_CONTENT              = 5
+Z_HIDDEN               = 1
+
+// ----------------------------------------------------------------------------
+//
+// COLORS
+//
+// ----------------------------------------------------------------------------
+
+COLOR_SECTION_01      = #2D63BE
+COLOR_SECTION_02      = #249865
+COLOR_SECTION_03      = #FB6846
+COLOR_SECTION_04      = #A99C56
+COLOR_SECTION_05      = #89A9A9
+
+COLOR_INDIGO          = #484CBF
+COLOR_BLACK_DK        = #131313
+COLOR_BLACK           = #222222
+// NOTE: The alpha channel makes smoother edges when used as border
+COLOR_BLACK_LT2       = #2E2E2E
+COLOR_BLACK_LT        = #222222FE
+COLOR_BLACK_05        = #00000060
+COLOR_WHITE           = #FFFFFF
+COLOR_GREY            = #6E6E6E
+COLOR_GREY_LT         = #D6D6D6
+COLOR_GREY_LT2        = #E0DEDF
+COLOR_GREY_LTR        = #EAEAEA
+COLOR_GREY_LTR05      = #EAEAEA60
+COLOR_JAVA            = #1ACABD
+COLOR_SUN             = #FFA616
+COLOR_TORCH_RED       = #FF0026
+COLOR_PURPLE          = #7500BB
+COLOR_VERDUN_GREEN    = #497C00
+COLOR_BILOBA_FLOWER   = #C795F1
+COLOR_INDOCHINE       = #CA7300
+COLOR_INDIGO          = #4849BD
+COLOR_PERSIAN_GREEN   = #009488
+COLOR_CONIFER         = #9EEC48
+COLOR_WEB_ORANGE      = #FFA900
+
+COLOR_01              = #108ADD
+COLOR_02              = #FFA429
+COLOR_03              = #F82C2B
+COLOR_04              = #88B615
+COLOR_05              = #734FD7
+COLOR_06              = #51C6BE
+COLOR_07              = #0F5F92
+COLOR_08              = #C67200
+COLOR_09              = #B11D1B
+COLOR_10              = #57730C
+COLOR_11              = #4E3497
+COLOR_12              = #269189
+COLOR_13              = #47B3F4
+COLOR_14              = #FEC06B
+COLOR_15              = #FF7B79
+COLOR_16              = #B6DD50
+COLOR_17              = #A382F7
+COLOR_18              = #64E0D8
+
+CONTROL_HEIGHT   = 40px
+CONTROL_HEIGHT_M = 30px
+CONTROL_HEIGHT_S = 15px
+
+// ----------------------------------------------------------------------------
+//
+// UNITS
+//
+// ----------------------------------------------------------------------------
+
+@unit pem = 1em / $FONT_SIZE
+@unit pad = 50pem
+@unit col = 320pem
+
+// ----------------------------------------------------------------------------
+//
+// MACROS
+//
+// ----------------------------------------------------------------------------
+
+
+
+
+@macro expand
+	position: absolute
+	top:    0em
+	bottom: 0em
+	right:  0em
+	left:   0em
+
+:
+	font-family: $FONT_BASE
+	line-height: 1.25em
+	font-size:   $FONT_SIZE * 1px
+
+*:
+	box-sizing: border-box
+
+

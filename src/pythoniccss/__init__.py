@@ -6,7 +6,7 @@
 # License           : BSD License
 # -----------------------------------------------------------------------------
 # Creation date     : 14-Jul-2013
-# Last modification : 16-Nov-2016
+# Last modification : 17-Nov-2016
 # -----------------------------------------------------------------------------
 
 from __future__ import print_function
@@ -19,7 +19,7 @@ try:
 except ImportError:
 	reporter = None
 
-VERSION = "0.4.0"
+VERSION = "0.5.0"
 LICENSE = "http://ffctn.com/doc/licenses/bsd"
 IS_PYTHON3 = sys.version_info[0] >= 3
 if IS_PYTHON3:
@@ -73,6 +73,97 @@ def asString(value):
 		return value[0]
 	else:
 		return value
+
+# -----------------------------------------------------------------------------
+#
+# MODEL
+#
+# -----------------------------------------------------------------------------
+
+class Selector(object):
+	"""Reprents a node selector, include node name, classes, id, attributes
+	and suffixes."""
+
+	def __init__( self, node, name, classes, attributes, suffix ):
+		self.node       = node
+		self.name       = name
+		self.classes    = classes
+		self.attributes = attributes
+		self.suffix     = suffix
+
+	def merge( self, selector ):
+		"""Merges the given selector with this one. This takes care of the
+		'&'."""
+		res= Selector(
+			self.node if selector.node == "&" else selector.node
+			,self.name       + selector.name
+			,self.classes    + selector.classes
+			,self.attributes + selector.attributes
+			,self.suffix     + selector.suffix
+		)
+		return res
+
+	def isSelf( self ):
+		"""Tells if the selector's node is an `&`."""
+		return self.node == "&"
+
+	def __str__( self ):
+		return "{0}{1}{2}{3}{4}".format(self.node, self.name, self.classes, self.attributes, self.suffix)
+
+	def __repr__( self ):
+		return "<Selector scope={0} id={1} class={2} attributes={3} suffix={4}@{5}>".format(self.node, self.name, self.classes, self.attributes, self.suffix, id(self))
+
+class Selection(object):
+	"""Represents selectors connected together by selector operators."""
+
+	def __init__( self, selector=None, module=None ):
+		assert isinstance(selector, Selector) or not selector
+		self.module = module
+		if selector:
+			self.elements = ["", selector]
+		else:
+			self.elements = []
+
+	def head( self ):
+		return self.elements[1]
+
+	def last( self ):
+		return self.elements[-1]
+
+	def rest( self ):
+		return self.elements[2:]
+
+	def copy( self ):
+		return Selection(module=self.module).extend(self)
+
+	def extend( self, selection ):
+		assert isinstance(selection, Selection)
+		head = selection.head()
+		if head and head.isSelf():
+			self.elements[-1] = self.elements[-1].merge(head)
+			self.elements += selection.rest()
+		else:
+			self.elements += selection.elements
+		return self
+
+	def add( self, operator, selector ):
+		assert isinstance(operator, str)
+		if operator.strip() or selector:
+			assert isinstance(selector, Selector) or not selector
+			self.elements.append(operator)
+			self.elements.append(selector)
+		return self
+
+	def __str__( self ):
+		res =  " ".join(str(_) for _ in self.elements if _)
+		if self.module:
+			return ".use-" + self.module + " " + res
+		else:
+			return res
+
+
+	def __repr__( self ):
+		return "<Selector {0}@{1}>".format(str(self), id(self))
 
 # -----------------------------------------------------------------------------
 #
@@ -148,11 +239,11 @@ def grammar(g=None):
 	g.rule      ("Attribute",        s.ATTRIBUTE._as("name"), g.arule(s.EQUAL, s.ATTRIBUTE_VALUE).optional()._as("value"))
 	g.rule      ("Attributes",       s.LSBRACKET, s.Attribute._as("head"), g.arule(s.COMMA, s.Attribute).zeroOrMore()._as("tail"), s.RSBRACKET)
 
-	g.rule      ("Selector",         g.agroup(s.SELF, s.NODE).optional()._as("scope"), s.NODE_ID.optional()._as("nid"), s.NODE_CLASS.zeroOrMore()._as("nclass"), s.Attributes.zeroOrMore()._as("attributes"), s.SELECTOR_SUFFIX.zeroOrMore()._as("suffix"))
+	g.rule      ("Selector",         g.agroup(s.SELF, s.NODE).optional()._as("node"), s.NODE_ID.optional()._as("nid"), s.NODE_CLASS.zeroOrMore()._as("nclass"), s.Attributes.zeroOrMore()._as("attributes"), s.SELECTOR_SUFFIX.zeroOrMore()._as("suffix"))
 	g.rule      ("SelectorNarrower", s.SELECTION_OPERATOR._as("op"), s.Selector._as("sel"))
 
 	g.rule      ("Selection",        s.Selector._as("head"),  s.SelectorNarrower.zeroOrMore()._as("tail"))
-	g.rule      ("SelectionList",    s.Selection._as("head"), g.arule(s.COMMA, s.Selection).zeroOrMore()._as("tail"))
+	g.rule      ("Scope",            s.Selection._as("head"), g.arule(s.COMMA, s.Selection).zeroOrMore()._as("tail"))
 
 	# =========================================================================
 	# VALUES & EXPRESSIONS
@@ -207,7 +298,7 @@ def grammar(g=None):
 	# the caching key.
 	# .processMemoizationKey(lambda _,c:_ + ":" + c.getVariables().get("requiredIndent", 0))
 	g.rule("Statement",     s.CheckIndent._as("indent"), g.agroup(s.Assignment, s.MacroInvocation, s.Declaration, s.COMMENT), s.EOL)
-	g.rule("Block",         s.CheckIndent._as("indent"), g.agroup(s.PERCENTAGE, s.SelectionList)._as("selector"), s.COLON.optional(), s.EOL, s.Indent, s.Statement.zeroOrMore()._as("code"), s.Dedent)
+	g.rule("Block",         s.CheckIndent._as("indent"), g.agroup(s.PERCENTAGE, s.Scope)._as("selector"), s.COLON.optional(), s.EOL, s.Indent, s.Statement.zeroOrMore()._as("code"), s.Dedent)
 
 	g.rule    ("MacroDeclaration", s.MACRO, s.NAME._as("name"), s.Parameters.optional()._as("parameters"), s.COLON.optional())
 	g.rule    ("MacroBlock",       s.CheckIndent._as("indent"), s.MacroDeclaration._as("type"), s.EOL, s.Indent, s.Statement.zeroOrMore()._as("code"), s.Dedent)
@@ -529,9 +620,8 @@ class PCSSProcessor(Processor):
 			return None
 		self._write(match[0] + " {")
 
-	def onCheckIndent(self, match ):
-		return True
-		# return len(tabs) if tabs else 0
+	def onCheckIndent(self, match, tabs ):
+		return len(tabs) if tabs else 0
 
 	def onString( self, match ):
 		value = self.process(match[0])
@@ -594,8 +684,7 @@ class PCSSProcessor(Processor):
 				res = ["O", rop, ["O", op, a, b], c]
 		return res
 
-	def onExpressionList( self, match, tail=None ):
-		head =  self.process(match["head"])
+	def onExpressionList( self, match, head, tail ):
 		if tail:
 			return [["L", [head] + [_[1] for _ in tail]]]
 		else:
@@ -617,60 +706,47 @@ class PCSSProcessor(Processor):
 		"""Selectors are returned as tuples `(scope, id, class, attributes, suffix)`.
 		We need to keep this structure as we need to be able to expand the `&`
 		reference."""
-		scope      =  self.process(match["scope"])
+		node       =  self.process(match["node"])
 		nid        =  self.process(match["nid"])
 		nclass     =  self.process(match["nclass"])
 		attributes =  self.process(match["attributes"])
 		suffix     =  self.process(match["suffix"])
-		scope      = scope[0] if scope else ""
+		node       = node[0] if node else ""
 		nid        = nid if nid else ""
 		suffix     = "".join(suffix) if suffix else ""
 		nclass     = "".join(nclass) if nclass else ""
 		attributes = "".join(attributes) if attributes else ""
-		if (scope or nid or nclass or attributes or suffix):
-			return [scope, nid, nclass, attributes or "", suffix]
+		if (node or nid or nclass or attributes or suffix):
+			return Selector(node, nid, nclass, attributes or "", suffix)
 		else:
 			return None
 
 	def onSelectorNarrower( self, match, op, sel ):
 		"""Returns a `(op, selector)` couple."""
-		if op:
-			op = op.strip() or " "
-		return (op, sel) if op or sel else None
+		if op: op = op.strip() or " "
+		sel = sel or None
+		return [op, sel] if (op or sel) else None
 
 	def onSelection( self, match, head, tail ):
 		"""Returns a structure like the following:
 		>   [[('div', '', '', '', ''), '> ', ('label', '', '', '', '')]]
-		>   ---SELECTOR------------   OP   --SELECTOR---------------
+		>   ---SELECTOR------------   OP   --SELECTOR----------------
+		>   +--head---------------+   +----------tail---------------+
 		"""
 		if not head and not tail: return None
-		assert not head or len(head) == 5
-		if head:
-			res = [head]
-			if tail:
-				for narrower in tail:
-					if not narrower: continue
-					res.extend(narrower)
-			# print "SELECTION.1=", res
-			return res
-		else:
-			res = []
-			for i, v in enumerate(tail):
-				if i == 0:
-					if v[0] == " ":
-						res.append(v[1])
-					else:
-						res.extend(v)
-				else:
-					res.extend(v)
-			# print "SELECTION.2=", res
-			return res
+		res = Selection(head, self.module)
+		for op, sel in tail:
+			if not op: continue
+			res.add(op, sel)
+		return res
 
-	def onSelectionList( self, match, head, tail ):
+	def onScope( self, match, head, tail ):
 		"""Updates the current scope and writes the scope selection line."""
 		# tail is [[s.COMMA, s.Selection], ...]
-		tail   = [_[1] for _ in tail or [] if _[1]]
-		scopes = [head] + tail if tail else [head]
+		scope = [head] if head else None
+		if tail:
+			for t in (_[1] for _ in tail if _[1]):
+				scope += [t]
 		# print ("onSelectionList: head=", head)
 		# print ("onSelectionList: tail=", tail)
 		# print (" tail.value", match[1].value)
@@ -678,13 +754,10 @@ class PCSSProcessor(Processor):
 		# print (" tail.value", match[1].value)
 		# print ("onSelectionList: scopes=", scopes)
 		# We want to epxand the `&` in the scopes
-		scopes = self._expandScopes(scopes)
+		full_scopes = self._expandScope(scope or [])
 		# We push the expanded scopes in the scopes stack
-		if scopes!= [None]:
-			self._pushScope(scopes)
-			self._header = u",\n".join((self._selectionAsString(_) for _ in self.scopes[-1])) + " {"
-		else:
-			self._header = u""
+		self._pushScope(full_scopes)
+		self._header = u",\n".join(str(_) for _ in full_scopes) + " {"
 		return self._header
 
 	def onSpecialDeclaration( self, match, type, filter, name, parameters ):
@@ -716,7 +789,6 @@ class PCSSProcessor(Processor):
 			line(self)
 		self.variables.pop()
 		self._evaluated.pop()
-
 
 	def onNumber( self, match, value, unit ):
 		value = float(value) if "." in value else int(value)
@@ -750,8 +822,8 @@ class PCSSProcessor(Processor):
 			self.variables[-1][name] = value
 		elif decorator == "@unit":
 			self.units[name] = value
-		# elif decorator == "@module":
-		# 	self.module      = value
+		elif decorator == "@module":
+			self.module      = value
 		else:
 			raise NotImplementedError
 		return None
@@ -823,7 +895,7 @@ class PCSSProcessor(Processor):
 			self._mode  = None
 		assert self._mode != "macro"
 		type, filter, name, params = type
-		name = name[0] if name else None
+		name = name or None
 		self._mode   = "macro"
 		self._macro  = []
 		self._macros[name] = [params, self._macro]
@@ -860,7 +932,7 @@ class PCSSProcessor(Processor):
 
 	def _write( self, line=None, indent=0 ):
 		line = u"  " * indent + line.decode("utf8") + u"\n"
-		self.output.write(line)
+		self.output.write(line.encode("utf8"))
 		return line
 
 	# ==========================================================================
@@ -868,7 +940,6 @@ class PCSSProcessor(Processor):
 	# ==========================================================================
 
 	def _pushScope( self, scopes ):
-		assert scopes and scopes[0] != None
 		self.scopes.append(scopes)
 		self.variables.append({})
 		self._evaluated.append({})
@@ -886,50 +957,19 @@ class PCSSProcessor(Processor):
 		"""Lists the current scopes"""
 		return self.scopes[-1] if self.scopes else None
 
-	def _expandScopes( self, scopes ):
-		"""Expands the `&` in the list of given scopes."""
-		res = []
+	def _expandScope( self, scope ):
+		"""Expands the given scope so that it is fully prefixed by the parent.
+		The resulting cardinality should be `len(parents) * len(scope)`."""
 		parent_scopes = self._listCurrentScopes()
-		for scope in scopes:
-			# If you have a look at onSelectionList, you'll see that the
-			# scope is a list of selectors joined by operators, ie:
-			# [ [NODE, ID, CLASS, ATTRIBUTES, SUFFIX], OP, [NODE...], ... ]
-			if parent_scopes:
-				if scope[0] is None:
-					for full_scope in parent_scopes:
-						res.append(full_scope + [" "] + scope[1:])
-				elif scope[0][0] == "&":
-					# If there is an `&` in the scope, we list the
-					# curent scopes and merge the scope with them
-					scope[0][0] = ''
-					for full_scope in parent_scopes:
-						# This is a tricky operation, but we get the very first
-						# selector of the given scope, which starts with an &,
-						# merge it with the most specific part of the current
-						# scopes and prepend the rest of th fulle scope.
-						merged = [self._mergeScopes(scope[0], full_scope[-1])] + scope[1:]
-						res.append(full_scope[0:-1] + merged)
-				else:
-					for full_scope in parent_scopes:
-						res.append(full_scope or [] + [" "] + scope)
-			else:
-				res.append(scope)
+		# If there's not parent scope, we return the scope as-is
+		if not parent_scopes: return scope or []
+		res = []
+		for parent_selection in parent_scopes:
+			for selection in scope:
+				new_selection = parent_selection.copy().extend(selection)
+				res.append(new_selection)
+		assert len(res) == len(parent_scopes) * len(scope)
 		return res
-
-	def _mergeScopeUnit( self, a, b):
-		"""Helper function for _mergeScopes"""
-		if not a: return b
-		if not b: return a
-		return b + a
-
-	def _mergeScopes( self, a, b):
-		# Merges the contents of scope A and B
-		if not b: return a
-		if not a: return b
-		return [self._mergeScopeUnit(a[i], b[i]) or None for i in range(len(a))]
-
-	def _scopeAsString( self, scope ):
-		return "".join(_ or "" for _ in scope)
 
 	def _copySelector( self, selector ):
 		"""A relatively bad way to copy the CFFI ParsingResult"""
@@ -940,6 +980,7 @@ class PCSSProcessor(Processor):
 		for i in range(len(selector)): ns.append(selector[i])
 		return ns
 
+	# FIXME: This is not supported anymore
 	def _selectionProcessBEM( self, selection ):
 		"""Processes the given selection, extracting BEM classes
 		from the selectors."""
@@ -988,14 +1029,6 @@ class PCSSProcessor(Processor):
 		# The new selection contains the aggregated BEM
 		# classes.
 		return new_selection
-
-	def _selectionAsString( self, selection ):
-		selection = self._selectionProcessBEM(selection)
-		res =  "".join(self._scopeAsString(_) if isinstance(_, list) else _ for _ in selection if _) if selection else ""
-		if self.module:
-			return ".use-{0} {1}".format(self.module, res)
-		else:
-			return res
 
 	def _stringEscapeFix( self, text ):
 		# NOTE: CleverCSS had some trouble with the empty content string, which

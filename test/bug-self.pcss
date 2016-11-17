@@ -1,0 +1,7 @@
+// BUG: The `&` made the processor crash on _expandScopes.
+.cleared:
+	&:after:
+		content: ""
+		height: 0em
+		display: block
+		clear: both

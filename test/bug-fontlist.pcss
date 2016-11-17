@@ -1,0 +1,8 @@
+// BUG: Only one item was displayed for FONT_1
+FONT_1=Helvetica, Arial, sans-serif
+FONT_2="Helvetica", "Arial", sans-serif
+FONT_3=`Helvetica, Arial, sans-serif`
+div:
+	font-family: $FONT_1
+	font-family: $FONT_2
+	font-family: $FONT_3
