@@ -15,6 +15,12 @@ from   io        import StringIO
 from  .grammar   import getGrammar
 from  .processor import PCSSProcessor
 
+try:
+	import reporter
+	logging = reporter.bind("pcss")
+except ImportError:
+	import logging
+
 def parse(path):
 	return getGrammar().parsePath(path)
 

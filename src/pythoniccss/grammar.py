@@ -15,6 +15,37 @@ G = None
 
 # -----------------------------------------------------------------------------
 #
+# INDENTATION FUNCTIONS
+#
+# -----------------------------------------------------------------------------
+
+def doIndent(context, match):
+	"""Increases the indent requirement in the parsing context"""
+	return True
+	v = context.getVariables().getParent ()
+	i = v.get("requiredIndent") or 0
+	v.set("requiredIndent", i + 1)
+	return True
+
+def doCheckIndent(context, match):
+	"""Ensures that the indent requirement is matched."""
+	return True
+	v          = context.getVariables()
+	tab_match  = context.getVariables().get("tabs")
+	tab_indent = len(tab_match[0])
+	req_indent = v.get("requiredIndent") or 0
+	return tab_indent == req_indent
+
+def doDedent(context, match):
+	"""Decreases the indent requirement in the parsing context"""
+	return True
+	v = context.getVariables().getParent ()
+	i = v.get("requiredIndent") or 0
+	v.set("requiredIndent", i - 1)
+	return True
+
+# -----------------------------------------------------------------------------
+#
 # GRAMMAR
 #
 # -----------------------------------------------------------------------------
@@ -57,7 +88,7 @@ def grammar(g=None):
 	g.token   ("INFIX_OPERATOR",   "[\-\+\*\/]")
 
 	g.token   ("NODE",             "\*|([a-zA-Z][\-_a-zA-Z0-9\-]*)")
-	g.token   ("NODE_CLASS",       "\.[\-_a-zA-Z][_a-zA-Z0-9_\-]*")
+	g.token   ("NODE_CLASS",       "(\.[\-_a-zA-Z][_a-zA-Z0-9_\-]*)+")
 	g.token   ("NODE_ID",          "#[_a-zA-Z][_a-zA-Z0-9\-]*")
 
 	# SEE: http://www.w3schools.com/cssref/css_units.asp
@@ -87,7 +118,7 @@ def grammar(g=None):
 	g.rule      ("Attribute",        s.ATTRIBUTE._as("name"), g.arule(s.EQUAL, s.ATTRIBUTE_VALUE).optional()._as("value"))
 	g.rule      ("Attributes",       s.LSBRACKET, s.Attribute._as("head"), g.arule(s.COMMA, s.Attribute).zeroOrMore()._as("tail"), s.RSBRACKET)
 
-	g.rule      ("Selector",         g.agroup(s.SELF, s.NODE).optional()._as("node"), s.NODE_ID.optional()._as("nid"), s.NODE_CLASS.zeroOrMore()._as("nclass"), s.Attributes.zeroOrMore()._as("attributes"), s.SELECTOR_SUFFIX.zeroOrMore()._as("suffix"))
+	g.rule      ("Selector",         g.agroup(s.SELF, s.NODE).optional()._as("node"), s.NODE_ID.optional()._as("nid"), s.NODE_CLASS.optional()._as("nclass"), s.Attributes.zeroOrMore()._as("attributes"), s.SELECTOR_SUFFIX.zeroOrMore()._as("suffix"))
 	g.rule      ("SelectorNarrower", s.SELECTION_OPERATOR._as("op"), s.Selector._as("sel"))
 
 	g.rule      ("Selection",        s.Selector._as("head"),  s.SelectorNarrower.zeroOrMore()._as("tail"))

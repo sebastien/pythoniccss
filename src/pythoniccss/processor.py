@@ -10,44 +10,16 @@
 # -----------------------------------------------------------------------------
 
 from __future__ import print_function
-from libparsing import Processor
+from libparsing import Processor, ensure_str, is_string
+from .grammar import grammar, getGrammar
+from .model   import Selection, Selector
+import os, sys, re, io
 
 try:
 	import reporter
 	logging = reporter.bind("pcss.processor")
 except ImportError:
 	import logging
-
-# -----------------------------------------------------------------------------
-#
-# INDENTATION FUNCTIONS
-#
-# -----------------------------------------------------------------------------
-
-def doIndent(context, match):
-	"""Increases the indent requirement in the parsing context"""
-	return True
-	v = context.getVariables().getParent ()
-	i = v.get("requiredIndent") or 0
-	v.set("requiredIndent", i + 1)
-	return True
-
-def doCheckIndent(context, match):
-	"""Ensures that the indent requirement is matched."""
-	return True
-	v          = context.getVariables()
-	tab_match  = context.getVariables().get("tabs")
-	tab_indent = len(tab_match[0])
-	req_indent = v.get("requiredIndent") or 0
-	return tab_indent == req_indent
-
-def doDedent(context, match):
-	"""Decreases the indent requirement in the parsing context"""
-	return True
-	v = context.getVariables().getParent ()
-	i = v.get("requiredIndent") or 0
-	v.set("requiredIndent", i - 1)
-	return True
 
 # -----------------------------------------------------------------------------
 #
@@ -304,8 +276,12 @@ class PCSSProcessor(Processor):
 	# GRAMMAR RULES
 	# ==========================================================================
 
+
+	def processWord(self, result):
+		return ensure_str(result)
+
 	def processToken(self, result):
-		return result[0]
+		return ensure_str(result[0])
 
 	def onURL(self, match ):
 		return ((self.process(match)[0], None), "S")
@@ -661,8 +637,11 @@ class PCSSProcessor(Processor):
 			self._footer = None
 
 	def _write( self, line=None, indent=0 ):
-		line = u"  " * indent + line.decode("utf8") + u"\n"
-		self.output.write(line.encode("utf8"))
+		line = u"  " * indent + ensure_str(line) + u"\n"
+		if isinstance(self.output, io.TextIOBase):
+			self.output.write(line)
+		else:
+			self.output.write(line.encode("utf8"))
 		return line
 
 	# ==========================================================================
@@ -772,11 +751,11 @@ class PCSSProcessor(Processor):
 		"""Converts a value `(value:any, type:char)` into its CSS string
 		representation."""
 		# if isinstance(value, str) or isinstance(value,unicode): return value
-		assert isinstance(value, list) or isinstance(value, tuple) and len(value) == 2, "{0}: Expected `(type, value)`, got {1}".format(self._valueAsString, repr(value))
+		# assert isinstance(value, list) or isinstance(value, tuple) and len(value) == 2, "{0}: Expected `(type, value)`, got {1}".format(self._valueAsString, repr(value))
 		v, u = value ; u = u or ""
 		# == UNITS
 		if   u == "L":
-			return ", ".join([self._valueAsString(_) for _ in v])
+			return u", ".join([self._valueAsString(_) for _ in v])
 		elif u == "l":
 			return " ".join([self._valueAsString(_) for _ in v])
 		elif u == "%":
@@ -787,9 +766,9 @@ class PCSSProcessor(Processor):
 			else:
 				return "{0:f}%".format(v)
 		elif   u == "C":
-			if type(v) in (str, unicode):
+			if is_string(v):
 				# If we have a string instead of a tuple, we pass it as-is
-				return v
+				return ensure_str(v)
 			elif len(v) == 3:
 				r, g, b = v
 				r = ("0" if r < 16 else "") + hex(r)[2:].upper()

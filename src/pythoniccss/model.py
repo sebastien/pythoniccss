@@ -6,13 +6,12 @@
 # License           : BSD License
 # -----------------------------------------------------------------------------
 # Creation date     : 14-Jul-2013
-# Last modification : 17-Nov-2016
+# Last modification : 18-Nov-2016
 # -----------------------------------------------------------------------------
-
 
 # -----------------------------------------------------------------------------
 #
-# MODEL
+# SELECTOR
 #
 # -----------------------------------------------------------------------------
 
@@ -48,6 +47,13 @@ class Selector(object):
 
 	def __repr__( self ):
 		return "<Selector scope={0} id={1} class={2} attributes={3} suffix={4}@{5}>".format(self.node, self.name, self.classes, self.attributes, self.suffix, id(self))
+
+
+# -----------------------------------------------------------------------------
+#
+# SELECTION
+#
+# -----------------------------------------------------------------------------
 
 class Selection(object):
 	"""Represents selectors connected together by selector operators."""
@@ -86,7 +92,7 @@ class Selection(object):
 		assert isinstance(operator, str)
 		if operator.strip() or selector:
 			assert isinstance(selector, Selector) or not selector
-			self.elements.append(operator)
+			self.elements.append(operator.strip())
 			self.elements.append(selector)
 		return self
 

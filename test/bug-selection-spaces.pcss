@@ -1,0 +1,8 @@
+// BUG: Output as `.as-contained.default-height`
+.as-contained  .default-height:
+	height: auto
+// BUG: Output with two extra spaces `.IndicatorList .indicator   li.help`
+.IndicatorList:
+	// There's already a legend, so the help icon is redundant
+	.indicator li.help:
+		display: none
