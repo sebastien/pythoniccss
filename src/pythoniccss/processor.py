@@ -47,6 +47,7 @@ class PCSSProcessor(Processor):
 	and the result is streamed out through the `_write` call."""
 
 	RGB        = None
+	PRECISION  = "0.3f"
 
 	RE_SPACES            = re.compile("\s+")
 	RE_UNQUOTED          = re.compile("\!?[\./\w\d_-]+")
@@ -637,11 +638,11 @@ class PCSSProcessor(Processor):
 			self._footer = None
 
 	def _write( self, line=None, indent=0 ):
-		line = u"  " * indent + ensure_str(line) + u"\n"
+		line = "  " * indent + ensure_str(line) + "\n"
 		if isinstance(self.output, io.TextIOBase):
 			self.output.write(line)
 		else:
-			self.output.write(line.encode("utf8"))
+			self.output.write(line)
 		return line
 
 	# ==========================================================================
@@ -755,16 +756,16 @@ class PCSSProcessor(Processor):
 		v, u = value ; u = u or ""
 		# == UNITS
 		if   u == "L":
-			return u", ".join([self._valueAsString(_) for _ in v])
+			return ", ".join([self._valueAsString(e) for e in v])
 		elif u == "l":
-			return " ".join([self._valueAsString(_) for _ in v])
+			return " ".join([self._valueAsString(e) for e in v])
 		elif u == "%":
 			v = 100.0 * v
 			d = int(v)
 			if v == d:
 				return "{0:d}%".format(d)
 			else:
-				return "{0:f}%".format(v)
+				return "{0:0.3f}%".format(v)
 		elif   u == "C":
 			if is_string(v):
 				# If we have a string instead of a tuple, we pass it as-is
@@ -782,15 +783,15 @@ class PCSSProcessor(Processor):
 		elif u == "S":
 			s,q = v
 			if q:
-				return q + s.decode("utf8").encode("utf8") + q
+				return q + ensure_str(s) + q
 			else:
-				return s.encode("utf8")
+				return ensure_str(s)
 		# == VALUES
 		if   type(v) == int:
 			return "{0:d}{1}".format(v,u)
 		elif type(v) == float:
 			# We remove the trailing 0 to have the most compact representation
-			v = str(v)
+			v = "{0:0.3f}".format(v)
 			while len(v) > 2 and v[-1] == "0" and v[-2] != ".":
 				v = v[0:-1]
 			if v.endswith(".0"):v = v[:-2]
@@ -802,10 +803,8 @@ class PCSSProcessor(Processor):
 				return (p + v + p) if p else v
 			else:
 				return str(v)
-		elif isinstance(v, str):
-			return v
-		elif isinstance(v, unicode):
-			return v.encode("utf-8")
+		elif is_string(v):
+			return ensure_str(v)
 		else:
 			raise ProcessingException("Value string conversion not implemented: {0}".format(value))
 
