@@ -6,12 +6,12 @@
 # License           : BSD License
 # -----------------------------------------------------------------------------
 # Creation date     : 14-Jul-2013
-# Last modification : 17-Nov-2016
+# Last modification : 18-Nov-2016
 # -----------------------------------------------------------------------------
 
 from .command   import run, parse, convert
 
-VERSION    = "0.5.0"
+VERSION    = "0.6.0"
 LICENSE    = "http://ffctn.com/doc/licenses/bsd"
 
 __doc__ = """
