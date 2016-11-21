@@ -43,7 +43,6 @@ def convert(path):
 def run(args):
 	"""Processes the command line arguments."""
 	USAGE = "pythoniccss FILE..."
-	if reporter: reporter.install(reporter.StderrReporter())
 	if type(args) not in (type([]), type(())): args = [args]
 	oparser = argparse.ArgumentParser(
 		prog        = os.path.basename(__file__.split(".")[0]),
@@ -70,7 +69,7 @@ def run(args):
 	# We output the list of symbols
 	if args.symbols:
 		for s in sorted(g.symbols, lambda a,b:cmp(a.id, b.id)):
-			reporter.info("Symbol #{0:10s} = {1}".format(str(s.id), s))
+			logging.info("Symbol #{0:10s} = {1}".format(str(s.id), s))
 	for path in args.files:
 		start_time = time.time()
 		result = g.parsePath(path)
@@ -81,7 +80,7 @@ def run(args):
 			stats.report(getGrammar(), output)
 		else:
 			if result is None:
-				reporter.error("Could not find path: {0}".format(path))
+				logging.error("Could not find path: {0}".format(path))
 			elif result.isSuccess():
 				if args.json:
 					result.toJSON()
@@ -104,9 +103,9 @@ def run(args):
 					# 		reporter.warn(_)
 			else:
 				msg = "Parsing of `{0}` failed at line:{1}#{2}".format(path, result.line, result.offset)
-				reporter.error(msg)
-				reporter.error("{0} lines".format( len(open(path).read()[0:result.offset].split("\n"))))
-				reporter.error(result.textAround())
+				logging.error(msg)
+				logging.error("{0} lines".format( len(open(path).read()[0:result.offset].split("\n"))))
+				logging.error(result.textAround())
 				# FIXME: This is inaccurate, the parsingresult does not return
 				raise Exception("Parsing of `{0}` failed at line:{1}\n> {2}".format(path, result.line, result.textAround()))
 	if args.output:
