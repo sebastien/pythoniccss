@@ -21,6 +21,8 @@ try:
 except ImportError:
 	import logging
 
+BASE = os.path.dirname(os.path.abspath(__file__))
+
 # -----------------------------------------------------------------------------
 #
 # PCSS PROCESSOR
@@ -135,7 +137,7 @@ class PCSSProcessor(Processor):
 			colors = {}
 			# We extract the color names from X11's rgb file
 			# SEE: https://en.wikipedia.org/wiki/X11_color_names#Color_name_chart
-			with open("/usr/share/X11/rgb.txt") as f:
+			with open(os.path.join(BASE, "rgb.txt")) as f:
 				# FIXME: Somehow, this creates a sefault
 				# for line in f.readlines():
 				# 	print (line)
