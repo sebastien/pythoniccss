@@ -17,9 +17,8 @@ LONG_DESCRIPTION  = None
 if os.path.exists("README.md") and os.popen("which pandoc").read():
 	LONG_DESCRIPTION = os.popen("pandoc -f markdown -t rst README.md").read()
 
-VERSION = eval(filter(lambda _:_.startswith("VERSION"), file("src/pythoniccss/__init__.py").readlines())[0].split("=")[1])
+VERSION = eval(filter(lambda _:_.startswith("VERSION"), open("src/pythoniccss/__init__.py").readlines())[0].split("=")[1])
 WEBSITE = "http://www.github.com/sebastien/pythoniccss"
-
 
 setup(
 	name             = NAME,
