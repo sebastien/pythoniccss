@@ -62,8 +62,9 @@ def grammar(g=None):
 	g.token   ("NUMBER",           "-?(0x)?[0-9]+(\.[0-9]+)?")
 	g.token   ("ATTRIBUTE",        "[a-zA-Z\-_][a-zA-Z0-9\-_]*")
 	g.token   ("ATTRIBUTE_VALUE",  "\"[^\"]*\"|'[^']*'|[^,\]]+")
+	g.token   ("ATTRIBUTE_OPERATOR",  "[\^]?=")
 	g.token   ("SELECTOR_SUFFIX",  "::?[\-a-z][a-z0-9\-]*(\([^\)]+\))?")
-	g.token   ("SELECTION_OPERATOR", "\>|\+|[ ]+")
+	g.token   ("SELECTION_OPERATOR", "\>|\+|\~|[ ]+")
 	g.token   ("REST",              ".+")
 	g.word    ("INCLUDE",          "@include")
 	g.word    ("EQUAL",             "=")
@@ -85,7 +86,7 @@ def grammar(g=None):
 	g.token   ("STRING_BQ",        "`((\\\\`|[^`\\n])*)`")
 	g.token   ("STRING_DQ",        "\"((\\\\\"|[^\"\n])*)\"")
 	g.token   ("STRING_UQ",        "[^\s\n\*\+,:;\(\)\[\]]+")
-	g.token   ("INFIX_OPERATOR",   "[\-\+\*\/]")
+	g.token   ("INFIX_OPERATOR",   "\- |[\+\*\/]")
 
 	g.token   ("NODE",             "\*|([a-zA-Z][\-_a-zA-Z0-9\-]*)")
 	g.token   ("NODE_CLASS",       "(\.[\-_a-zA-Z][_a-zA-Z0-9_\-]*)+")
@@ -115,7 +116,7 @@ def grammar(g=None):
 	g.procedure ("Dedent",           doDedent)
 	g.rule      ("CheckIndent",      s.TABS._as("tabs"), g.acondition(doCheckIndent))
 
-	g.rule      ("Attribute",        s.ATTRIBUTE._as("name"), g.arule(s.EQUAL, s.ATTRIBUTE_VALUE).optional()._as("value"))
+	g.rule      ("Attribute",        s.ATTRIBUTE._as("name"), g.arule(s.ATTRIBUTE_OPERATOR, s.ATTRIBUTE_VALUE).optional()._as("value"))
 	g.rule      ("Attributes",       s.LSBRACKET, s.Attribute._as("head"), g.arule(s.COMMA, s.Attribute).zeroOrMore()._as("tail"), s.RSBRACKET)
 
 	g.rule      ("Selector",         g.agroup(s.SELF, s.NODE).optional()._as("node"), s.NODE_ID.optional()._as("nid"), s.NODE_CLASS.optional()._as("nclass"), s.Attributes.zeroOrMore()._as("attributes"), s.SELECTOR_SUFFIX.zeroOrMore()._as("suffix"))

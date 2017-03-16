@@ -9,7 +9,7 @@
 # Last modification : 21-Nov-2016
 # -----------------------------------------------------------------------------
 
-from .command   import run, parse, convert
+from .command   import run, parse, parseString, convert
 
 VERSION    = "0.6.5"
 LICENSE    = "http://ffctn.com/doc/licenses/bsd"
@@ -19,6 +19,8 @@ Processor for the PythonicCSS language. This module use a PEG-based parsing
 engine <http://github.com/sebastien/parsing>, which sadly has an important
 performance penalty, but offers greated easy of development/update.
 """
+
+process = parseString
 
 if __name__ == "__main__":
 	import sys

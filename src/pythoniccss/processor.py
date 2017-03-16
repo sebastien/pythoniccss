@@ -111,11 +111,11 @@ class PCSSProcessor(Processor):
 	# operation take (value, unit) for a and b, and unit is the default
 	# unit that will override the others.
 	OPERATIONS = {
-		"+" : lambda a,b,u:[a[0] + b[0], a[1] or b[1] or u],
-		"-" : lambda a,b,u:[a[0] - b[0], a[1] or b[1] or u],
-		"*" : lambda a,b,u:[float(a[0]) * b[0], a[1] or b[1] or u],
-		"/" : lambda a,b,u:[float(a[0]) / b[0], a[1] or b[1] or u],
-		"%" : lambda a,b,u:[a[0] % b[0], a[1] or b[1] or u],
+		"+"  : lambda a,b,u:[a[0] + b[0], a[1] or b[1] or u],
+		"- " : lambda a,b,u:[a[0] - b[0], a[1] or b[1] or u],
+		"*"  : lambda a,b,u:[float(a[0]) * b[0], a[1] or b[1] or u],
+		"/"  : lambda a,b,u:[float(a[0]) / b[0], a[1] or b[1] or u],
+		"%"  : lambda a,b,u:[a[0] % b[0], a[1] or b[1] or u],
 	}
 
 	OPERATOR_PRIORITY = {
