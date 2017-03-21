@@ -13,7 +13,7 @@ from __future__ import print_function
 import re, os, sys, argparse, json, copy, io, time
 from   io        import StringIO
 from  .grammar   import getGrammar
-from  .processor import PCSSProcessor
+from  .processor2 import PCSSProcessor
 
 try:
 	import reporter

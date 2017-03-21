@@ -427,6 +427,7 @@ class PCSSProcessor(Processor):
 		nclass     = "".join(nclass) if nclass else ""
 		attributes = "".join(attributes) if attributes else ""
 		if (node or nid or nclass or attributes or suffix):
+			print ("SELECTOR", Selector(node, nid, nclass, attributes or "", suffix))
 			return Selector(node, nid, nclass, attributes or "", suffix)
 		else:
 			return None
@@ -444,7 +445,8 @@ class PCSSProcessor(Processor):
 		>   +--head---------------+   +----------tail---------------+
 		"""
 		if not head and not tail: return None
-		res = Selection(head, self.module)
+		res = Selection(head, self.module, self.scopes[-1] if self.scopes else None)
+		print ("SELECCTION", res, self.scopes)
 		for op, sel in tail:
 			if not op: continue
 			res.add(op, sel)
@@ -495,8 +497,10 @@ class PCSSProcessor(Processor):
 		scope["indent"] = ("V", (self.indent, None))
 		self.variables.append(scope)
 		self._evaluated.append({})
+		print ("MACRO INDENT", scope["indent"])
 		for line in self._macros[name][1]:
 			line(self)
+		print ("MACRO END")
 		self.variables.pop()
 		self._evaluated.pop()
 
@@ -595,6 +599,7 @@ class PCSSProcessor(Processor):
 		self.indent = indent
 		self._writeFooter()
 		while len(self.scopes) > indent:
+			print ("POP SCOPE", self.scopes[-1])
 			self._popScope()
 		self.process(match["selector"])
 		self.process(match["code"])

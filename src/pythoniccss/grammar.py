@@ -123,7 +123,7 @@ def grammar(g=None):
 	g.rule      ("SelectorNarrower", s.SELECTION_OPERATOR._as("op"), s.Selector._as("sel"))
 
 	g.rule      ("Selection",        s.Selector._as("head"),  s.SelectorNarrower.zeroOrMore()._as("tail"))
-	g.rule      ("Scope",            s.Selection._as("head"), g.arule(s.COMMA, s.Selection).zeroOrMore()._as("tail"))
+	g.rule      ("Selections",       s.Selection._as("head"), g.arule(s.COMMA, s.Selection).zeroOrMore()._as("tail"))
 
 	# =========================================================================
 	# VALUES & EXPRESSIONS
@@ -142,7 +142,7 @@ def grammar(g=None):
 	# NOTE: We use Prefix and Suffix to avoid recursion, which creates a lot
 	# of problems with parsing expression grammars
 	g.group     ("Prefix", s.Value, g.arule(s.LP, s.Expression, s.RP))
-	s.Expression.set(s.Prefix, s.Suffixes.zeroOrMore())
+	s.Expression.set(s.Prefix._as("prefix"), s.Suffixes.zeroOrMore()._as("suffixes"))
 
 	g.rule      ("Invocation",   g.arule(s.DOT,     s.METHOD_NAME).optional()._as("method"), s.LP, s.Arguments.optional()._as("arguments"), s.RP)
 	g.rule      ("InfixOperation", s.INFIX_OPERATOR, s.Expression)
@@ -164,7 +164,8 @@ def grammar(g=None):
 
 	g.rule      ("Comment",          s.COMMENT.oneOrMore(), s.EOL)
 	g.rule      ("Include",          s.INCLUDE, s.PATH._as("path"),  s.EOL)
-	g.rule      ("Definition",       s.Declaration, s.EOL)
+	# FIXME: Not sure why definition needs to be standalone
+	g.rule      ("Definition",       s.Declaration._as("declaration"), s.EOL)
 	# FIXME: If we remove optional() from SPECIAL_NAME, we get a core dump...
 	g.rule      ("Directive",        s.SPECIAL_NAME.optional()._as("directive"), s.VARIABLE_NAME._as("value"), s.EOL)
 	g.rule      ("CSSDirective",     s.CSS_DIRECTIVE._as("directive"),  s.REST._as("value"), s.EOL)
@@ -177,8 +178,9 @@ def grammar(g=None):
 	# of the failures. A good idea would be to append the indentation value to
 	# the caching key.
 	# .processMemoizationKey(lambda _,c:_ + ":" + c.getVariables().get("requiredIndent", 0))
-	g.rule("Statement",     s.CheckIndent._as("indent"), g.agroup(s.Assignment, s.MacroInvocation, s.Declaration, s.COMMENT), s.EOL)
-	g.rule("Block",         s.CheckIndent._as("indent"), g.agroup(s.PERCENTAGE, s.Scope)._as("selector"), s.COLON.optional(), s.EOL, s.Indent, s.Statement.zeroOrMore()._as("code"), s.Dedent)
+	g.rule("Statement",     s.CheckIndent._as("indent"), g.agroup(s.Assignment, s.MacroInvocation, s.Declaration, s.COMMENT)._as("op"), s.EOL)
+	# FIXME: Not clear why there's a PERCENTAGE here
+	g.rule("Block",         s.CheckIndent._as("indent"), g.agroup(s.PERCENTAGE, s.Selections)._as("selections"), s.COLON.optional(), s.EOL, s.Indent, s.Statement.zeroOrMore()._as("code"), s.Dedent)
 
 	g.rule    ("MacroDeclaration", s.MACRO, s.NAME._as("name"), s.Parameters.optional()._as("parameters"), s.COLON.optional())
 	g.rule    ("MacroBlock",       s.CheckIndent._as("indent"), s.MacroDeclaration._as("type"), s.EOL, s.Indent, s.Statement.zeroOrMore()._as("code"), s.Dedent)
