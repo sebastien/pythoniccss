@@ -9,6 +9,9 @@
 # Last modification : 18-Nov-2016
 # -----------------------------------------------------------------------------
 
+from __future__ import print_function
+import sys
+
 __doc__ = """
 Defines an abstract model for CSS stylesheets.
 """
@@ -29,7 +32,7 @@ class Factory(object):
 	def comment( self, value ):
 		return Comment(value)
 
-	def selector( self, node, name, classes, attributes, suffix ):
+	def selector( self, node, name="", classes="", attributes="", suffix="" ):
 		return Selector( node, name, classes, attributes, suffix )
 
 	def var( self, name, value, decorator=None ):
@@ -83,11 +86,28 @@ class Factory(object):
 #
 # -----------------------------------------------------------------------------
 
+class Named:
+	"""Trait for a named element, used by the `Element.resolve` method."""
+
+	def __init__( self, name ):
+		self.name = name
+
+class Output:
+	"""A trait that denotes objects that produce significant output (ie. not comments)"""
+
 class Element( object ):
 
 	def __init__( self ):
 		self._indent = None
 		self._parent  = None
+
+	def resolve( self, name ):
+		if isinstance( self, Node):
+			for _ in self.content:
+				if isinstance(_, Named) and _.name == name:
+					return _
+		if self._parent:
+			return self._parent.resolve(name)
 
 	def parent( self, value=NOTHING ):
 		if value is NOTHING:
@@ -96,6 +116,18 @@ class Element( object ):
 			self._parent = value
 			return self
 
+	def ancestors( self ):
+		if self._parent:
+			return [self._parent] + self._parent.ancestors()
+		else:
+			return []
+
+	def ancestor( self, like ):
+		if self._parent:
+			return self._parent if isinstance(self._parent, like) else self._parent.ancestor(like)
+		else:
+			return None
+
 	def indent( self, value=NOTHING ):
 		if value is NOTHING:
 			return self._indent
@@ -103,8 +135,18 @@ class Element( object ):
 			self._indent = value
 			return self
 
-	def write( self, stream ):
+	def write( self, stream=sys.stdout ):
 		stream.write("/* {0}.write not implemented */".format(self.__class__.__name__))
+
+	def slots( self, own=False ):
+		slots = []
+		if isinstance( self, Node ):
+			slots += [_.name for _ in self.content if isinstance(_, Named)]
+		if not own and self._parent:
+			for _ in self._parent.slots():
+				if _ not in slots:
+					slots.append(_)
+		return slots
 
 class Leaf( Element ):
 
@@ -128,10 +170,16 @@ class Node( Element ):
 		return self
 
 	def _add( self, value ):
+		if isinstance(value, Block):
+			parent = self.lastWithIndent(value._indent, Node)
+			if not (parent is self or parent is None):
+				assert parent._indent < value._indent
+				parent.add(value)
+				return value
 		if self._indent is not None:
 			value._indent = self._indent + 1 if value._indent is None else value._indent
 		self.content.append(value)
-		value.parent = self
+		value.parent(self)
 		return value
 
 	def lastWithIndent( self, indent, like=None ):
@@ -148,7 +196,7 @@ class Node( Element ):
 #
 # -----------------------------------------------------------------------------
 
-class Value( Leaf ):
+class Value( Leaf, Output ):
 
 	def suffix( self, operator, rvalue ):
 		return Computation(operator, self, rvalue)
@@ -173,14 +221,14 @@ class Reference( Value ):
 
 class URL( Value ):
 
-	def write( self, stream ):
+	def write( self, stream=sys.stdout ):
 		stream.write("url(")
 		stream.write(self.value)
 		stream.write(")")
 
 class RawString( Value ):
 
-	def write( self, stream ):
+	def write( self, stream=sys.stdout ):
 		stream.write(self.value)
 
 class String( Value ):
@@ -189,7 +237,7 @@ class String( Value ):
 		Leaf.__init__(self, value)
 		self.quote = quote
 
-	def write( self, stream ):
+	def write( self, stream=sys.stdout ):
 		if self.quote: stream.write(self.quote)
 		stream.write(self.value)
 		if self.quote: stream.write(self.quote)
@@ -200,7 +248,7 @@ class Number( Value ):
 		Leaf.__init__(self, value)
 		self.unit  = unit
 
-	def write( self, stream ):
+	def write( self, stream=sys.stdout):
 		stream.write(str(self.value))
 		if self.unit: stream.write(self.unit)
 
@@ -238,20 +286,20 @@ class Number( Value ):
 			return a
 		raise Exception("Cannot cast unify units {0} and {1}".format(a, b))
 
-	def write( self, stream ):
+	def write( self, stream=sys.stdout):
 		stream.write("{0}{1}".format(self.eval(), self.unit or ""))
 
 class RGB( Value ):
 
-	def write( self, stream ):
+	def write( self, stream=sys.stdout):
 		stream.write("rgb({0},{1},{2})".format(*self.value))
 
 class RGBA( Value ):
 
-	def write( self, stream ):
+	def write( self, stream=sys.stdout):
 		stream.write("rgba({0},{1},{2})".format(*self.value))
 
-class List( Leaf ):
+class List( Leaf, Output ):
 
 	def __init__( self, value, separator=None ):
 		Leaf.__init__(self, value)
@@ -263,7 +311,7 @@ class List( Leaf ):
 		else:
 			return self
 
-	def write( self, stream ):
+	def write( self, stream=sys.stdout):
 		last = len(self.value) - 1
 		for i,_ in enumerate(self.value):
 			_.write(stream)
@@ -297,7 +345,7 @@ class Computation( Value ):
 			raise Exception("Unsuported computation operator: {0}".format(self.operator))
 		return result
 
-	def write( self, stream ):
+	def write( self, stream=sys.stdout):
 		self.eval().write(stream)
 
 # -----------------------------------------------------------------------------
@@ -308,10 +356,8 @@ class Computation( Value ):
 
 class Comment( Leaf ):
 
-	def write( self, stream ):
-		stream.write("//")
-		stream.write(self.value)
-		stream.write("\n")
+	def write( self, stream=sys.stdout):
+		pass
 
 class Directive( Leaf):
 
@@ -323,17 +369,21 @@ class ModuleDirective( Directive ):
 	def apply( self, context ):
 		context.set("__module__", self.value)
 
-	def write( self, stream ):
+	def write( self, stream=sys.stdout):
 		pass
 
 class MacroInvocation( Directive ):
 
 	def __init__( self, name, arguments):
 		Directive.__init__(self, arguments)
-		self.name  = name
+		self.name = name
+		self.arguments = arguments
 
-	def write( self, stream ):
-		pass
+	def write( self, stream=sys.stdout):
+		macro = self.resolve(self.name)
+		assert macro and isinstance(macro, Macro)
+		block = macro.apply(self.arguments, self.parent())
+		block.write(stream)
 
 class Variable( Directive ):
 
@@ -342,17 +392,10 @@ class Variable( Directive ):
 		self.name = name
 		self.decorator = decorator
 
-	def write( self, stream ):
-		stream.write("/* ")
-		if self.decorator:
-			stream.write(self.decorator)
-			stream.write(" ")
-		stream.write(self.name)
-		stream.write(" = ")
-		self.value.write(stream)
-		stream.write(" */")
+	def write( self, stream=sys.stdout):
+		pass
 
-class Property( Leaf ):
+class Property( Leaf, Output ):
 
 	def __init__( self, name, value, important=None):
 		Leaf.__init__(self)
@@ -360,7 +403,7 @@ class Property( Leaf ):
 		self.value = value
 		self.important = important
 
-	def write( self, stream ):
+	def write( self, stream=sys.stdout):
 		stream.write("\t")
 		stream.write(self.name)
 		stream.write(":")
@@ -377,6 +420,37 @@ class Property( Leaf ):
 #
 # -----------------------------------------------------------------------------
 
+class Context( Node ):
+	"""A node that is not tied to a specific syntax but that is able
+	to declare slots that will be resolved by children."""
+
+	def __init__( self, arguments, parent ):
+		Node.__init__(self)
+		self.slots = {}
+		for k in arguments or {}:
+			self.set(k, arguments[k])
+		self.parent(parent)
+
+	def set( self, name, value):
+		self.slots[name] = value
+		return value
+
+	def has( self, name):
+		return name in self.slots
+
+	def get( self, name):
+		return self.slots.get(name)
+
+	def resolve( self, name ):
+		if self.has(name):
+			return self.get(name)
+		else:
+			return super(Node, self).resolve(name)
+
+	def write( self, stream=sys.stdout):
+		for _ in self.content:
+			_.write(stream)
+
 class Block(Node):
 
 	def __init__( self, selections=None ):
@@ -384,7 +458,7 @@ class Block(Node):
 		self.selections = []
 		self._selectors = []
 		self._indent    = 0
-		self._isDirty   = False
+		self._isDirty   = True
 		if selections:
 			self.select(selections)
 
@@ -402,47 +476,62 @@ class Block(Node):
 
 	def selectors( self ):
 		if self._isDirty:
-			r = []
-			s = [_.copy() for _ in self.parent.selectors()] if isinstance(self.parent, Block) else []
-			for p in s:
-				for q in self.selections:
-					r.append(p.narrow(q))
-			self._selectors = r if s else self.selections
+			r  = []
+			pb = self.ancestor(Block)
+			ps = [_.copy() for _ in pb.selectors()] if pb else []
+			bs = self.selections
+			if ps:
+				if not bs:
+					r += ps
+				else:
+					for prefix in ps:
+						for suffix in bs:
+							r.append(prefix.narrow(suffix))
+			else:
+				r += bs
+			self._selectors = r
+			self._isDirty   = False
 		return self._selectors
 
-	def write( self, stream ):
-		for _ in self.selectors():
-			_.write(stream)
-		stream.write(":\n")
+	def write( self, stream=sys.stdout):
+		# Here we only output the selectors if we know we have one
+		# direct child with significant output.
+		if next((_ for _ in self.content if isinstance(_, Output)), False):
+			sel = self.selectors()
+			for _ in sel:
+				_.write(stream)
+			if sel:
+				stream.write(":\n")
 		for _ in self.content:
 			_.write(stream)
 
-class Macro(Node):
+	def __repr__( self ):
+		return "<Block `{0}` at {1}>".format(", ".join(_.expr() for _ in self.selections), id(self))
+
+class Macro( Node, Named ):
 
 	def __init__( self, name, parameters=None ):
 		Node.__init__(self)
-		self.name = name
+		Named.__init__(self, name)
 		self.parameters = parameters
 
-	def write( self, stream ):
-		stream.write("/* @macro {0} {1} */".format(self.name, self.parameters or ""))
+	def apply( self, arguments, parent ):
+		# NOTE: This has the side-effect of the new block "borrowing" the
+		# content. In theory, we should deep-copy the content, but it's
+		# OK like that as we're not multi-threading.
+		return Context(arguments, parent).add(self.content)
 
+	def write( self, stream=sys.stdout):
+		pass
 
 class Stylesheet(Node):
 
-	def _add( self, value ):
-		if isinstance(value, Block):
-			parent = self.lastWithIndent(value._indent, Node)
-			if not (parent is self or parent is None):
-				assert parent._indent < value._indent
-				parent.add(value)
-			else:
-				super(Stylesheet, self)._add(value)
-		else:
-			super(Stylesheet, self)._add(value)
-		return self
+	def __init__( self ):
+		Node.__init__(self)
 
-	def write( self, stream ):
+
+
+	def write( self, stream=sys.stdout ):
 		for _ in self.content:
 			_.write(stream)
 
@@ -470,9 +559,9 @@ class Selector(Leaf):
 		sel.next = (self.next[0], self.next[1].copy()) if self.next else None
 		return sel
 
-	def tail( self, value=NOTHING ):
+	def last( self, value=NOTHING ):
 		if value is NOTHING:
-			return self.next[1].tail() if self.next else self
+			return self.next[1].last() if self.next else self
 		else:
 			tail = self
 			while tail.next:
@@ -482,16 +571,13 @@ class Selector(Leaf):
 
 	def narrow( self, selector, operator=None):
 		"""Returns a copy of this selector prefixed with the given selector."""
+		last = self.last()
 		if selector.node == "&":
-			assert operator is None or not operator.strip()
-			res  = self.copy()
-			tail = res.tail()
-			tail.merge(selector)
-			return res
+			last.merge(selector)
+			last.next = selector.next
 		else:
-			tail = self.tail()
-			tail.next = (operator, selector)
-			return self
+			last.next = (operator, selector)
+		return self
 
 	def prefix( self, selector ):
 		"""Returns a copy of this selector prefixed with the given selector."""
@@ -508,17 +594,21 @@ class Selector(Leaf):
 		self.suffix     += selector.suffix
 		return self
 
-	def write( self, stream ):
-		stream.write("{0}{1}{2}{3}{4}".format(self.node, self.id, self.classes, self.attributes, self.suffix))
-		if self.next:
+	def expr( self, single=False ):
+		res = u"{0}{1}{2}{3}{4}".format(self.node, self.id, self.classes, self.attributes, self.suffix)
+		if not single and self.next:
 			op, sel = self.next
-			stream.write(" ")
+			res += " "
 			if op and op != " ":
-				stream.write(op)
-				stream.write(" ")
-			sel.write(stream)
+				res += op
+				res += " "
+			res += sel.expr()
+		return res
+
+	def write( self, stream=sys.stdout ):
+		stream.write(self.expr())
 
 	def __repr__( self ):
-		return "<Selector node={0} id={1} class={2} attributes={3} suffix={4}@{5}>".format(self.node, self.id, self.classes, self.attributes, self.suffix, id(self))
+		return "<Selector `{0}` at {1}>".format(self.expr(), id(self))
 
 # EOF

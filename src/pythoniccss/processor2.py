@@ -173,6 +173,9 @@ class PCSSProcessor(Processor):
 		tail = self.process(match["tail"])
 		for op, sel in tail:
 			if sel:
+				if not head:
+					head = self.F.selector("&")
+					head.indent(sel.indent())
 				head = head.narrow(sel, op.strip() if op else None)
 		return head
 
