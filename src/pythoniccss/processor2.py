@@ -105,11 +105,21 @@ class PCSSProcessor(Processor):
 	def onSuffix( self, match ):
 		return self.process(match[0])
 
+	def onParens( self, match, value ):
+		return self.F.parens(value)
+
 	def onExpression( self, match, prefix, suffixes ):
 		prefix = prefix[1] if not isinstance(prefix, Element) else prefix
-		for op, rvalue in suffixes:
-			prefix = prefix.suffix(op, rvalue)
+		for suffix in suffixes:
+			prefix = prefix.suffix(suffix)
 		return prefix
+
+	def onInvocation( self, match, method, arguments):
+		method = method[1] if method else None
+		return self.F.invoke(method, arguments)
+
+	def onInfixOperation( self, match, op, rvalue):
+		return self.F.compute(op, None, rvalue)
 
 	# =========================================================================
 	# VALUES
@@ -215,6 +225,18 @@ class PCSSProcessor(Processor):
 		if op: op = op.strip() or " "
 		sel = sel or None
 		return [op, sel] if (op or sel) else None
+
+	def onAttribute( self, match ):
+		name  =  self.process(match["name"])
+		value =  self.process(match["value"])
+		return "[{0}{1}{2}]".format(name, value[0] if value else "", value[1] if value else "")
+
+	def onAttributes( self, match ):
+		head =  self.process(match["head"])
+		tail =  self.process(match["tail"])
+		assert not tail
+		result = "".join([head] + (tail or []))
+		return  result
 
 	# =========================================================================
 	# INDENTATION

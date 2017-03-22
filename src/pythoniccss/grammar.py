@@ -142,11 +142,12 @@ def grammar(g=None):
 
 	# NOTE: We use Prefix and Suffix to avoid recursion, which creates a lot
 	# of problems with parsing expression grammars
-	g.group     ("Prefix", s.Value, g.arule(s.LP, s.Expression, s.RP))
+	g.rule      ("Parens", s.LP, s.Expression._as("value"), s.RP)
+	g.group     ("Prefix", s.Value, s.Parens)
 	s.Expression.set(s.Prefix._as("prefix"), s.Suffix.zeroOrMore()._as("suffixes"))
 
 	g.rule      ("Invocation",   g.arule(s.DOT,     s.METHOD_NAME).optional()._as("method"), s.LP, s.Arguments.optional()._as("arguments"), s.RP)
-	g.rule      ("InfixOperation", s.INFIX_OPERATOR, s.Expression)
+	g.rule      ("InfixOperation", s.INFIX_OPERATOR._as("op"), s.Expression._as("rvalue"))
 	# TODO: Might be better to use COMMA as a suffix to chain expressions
 	s.Suffix.set(s.InfixOperation, s.Invocation)
 
@@ -186,8 +187,8 @@ def grammar(g=None):
 	g.rule    ("MacroBlock",       s.CheckIndent._as("indent"), s.MacroDeclaration._as("type"), s.EOL, s.Indent, s.Statement.zeroOrMore()._as("code"), s.Dedent)
 
 	g.group   ("KeyframeSelector",  g.aword("from"), g.aword("to"), s.Number)
-	g.rule    ("Keyframe",         s.CheckIndent._as("indent"), s.KeyframeSelector._as("selector"), s.EOL, s.Indent, s.Statement.zeroOrMore()._as("code"), s.Dedent)
-	g.rule    ("KeyframesBlock",   s.CheckIndent._as("indent"), s.KEYFRAMES, s.NAME._as("name"), s.EOL, s.Indent, s.Keyframe.zeroOrMore()._as("frames"), s.Dedent)
+	g.rule    ("Keyframe",         s.CheckIndent._as("indent"), s.KeyframeSelector._as("selector"), s.COLON.optional(), s.EOL, s.Indent, s.Statement.zeroOrMore()._as("code"), s.Dedent)
+	g.rule    ("KeyframesBlock",   s.CheckIndent._as("indent"), s.KEYFRAMES, s.NAME._as("name"), s.COLON.optional(), s.EOL, s.Indent, s.Keyframe.zeroOrMore()._as("frames"), s.Dedent)
 
 	# FIXME: The special declaration is a bit broken... should work better
 	g.rule    ("SpecialDeclaration",   s.SPECIAL_NAME._as("type"), s.SPECIAL_FILTER.optional()._as("filter"),  s.NAME.optional()._as("name"), s.Parameters.optional()._as("parameters"), s.COLON.optional())

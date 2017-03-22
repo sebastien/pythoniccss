@@ -17,6 +17,13 @@ Defines an abstract model for CSS stylesheets.
 """
 
 NOTHING = object()
+OPERATOR_PRIORITY = {
+	"+" : 0,
+	"-" : 0,
+	"*" : 1,
+	"/" : 1,
+	"%" : 1,
+}
 
 class SyntaxError(Exception):
 	pass
@@ -50,6 +57,9 @@ class Factory(object):
 	def invokemacro( self, name, arguments=None ):
 		return MacroInvocation(name, arguments)
 
+	def invoke( self, name, arguments=None ):
+		return Invocation(name, arguments)
+
 	def list( self, value, separator=None ):
 		return List(value, separator)
 
@@ -64,6 +74,18 @@ class Factory(object):
 
 	def url( self, url ):
 		return URL(text)
+
+	def compute( self, op, lvalue, rvalue ):
+		op = op.strip()
+		if isinstance(rvalue, Computation) and OPERATOR_PRIORITY[op] > OPERATOR_PRIORITY[rvalue.operator]:
+			# We have (op, None, rvalue:Computation)
+			res = Computation(op, lvalue, rvalue.lvalue())
+			rvalue.lvalue(res)
+			return  rvalue
+		return Computation(op, lvalue, rvalue)
+
+	def parens( self, value ):
+		return Parens(value)
 
 	def rgb( self, rgb ):
 		return RGB(rgb)
@@ -81,11 +103,13 @@ class Factory(object):
 		return RawString(text)
 
 	def reference( self, name ):
-		return Reference(text)
+		return Reference(name)
 
 	def directive( self, name, value):
 		if name == "@module":
 			return ModuleDirective(value)
+		elif name == "@import":
+			return ImportDirective(value)
 		else:
 			raise Exception("Directive not implemented: {0}".format(name))
 
@@ -162,7 +186,12 @@ class Leaf( Element ):
 	def __init__( self, value=None ):
 		Element.__init__(self)
 		self.value = value
-
+		if isinstance(value, Element):
+			value.parent(self)
+		elif isinstance(value, tuple) or isinstance(value, list):
+			for _ in value:
+				if isinstance(_, Element):
+					_.parent(self)
 
 class Node( Element ):
 
@@ -212,26 +241,60 @@ class Node( Element ):
 
 class Value( Leaf, Output ):
 
-	def suffix( self, operator, rvalue ):
-		return Computation(operator, self, rvalue)
+	def suffix( self, suffix ):
+		if isinstance(suffix, Invocation):
+			suffix.target = self
+			return suffix
+		if isinstance(suffix, Computation):
+			# NOTE: This is where we place the lvalue in a nested computation
+			# See Factory.compute for that.
+			target = suffix
+			while target.lvalue():
+				target = target.lvalue()
+			target.lvalue(self)
+			return suffix
+		else:
+			raise SyntaxError("Suffix not supported: {0}".format(suffix))
 
 	def eval( self, context=None ):
 		return self.value
 
 	def add( self, value ):
-		raise NotImplementedError
+		raise SyntaxError("{0}.add not implemented".format(self))
 
 	def mul( self, value ):
-		raise NotImplementedError
+		raise SyntaxError("{0}.mul not implemented".format(self))
 
 	def div( self, value ):
-		raise NotImplementedError
+		raise SyntaxError("{0}.div not implemented".format(self))
 
 	def sub( self, value ):
-		raise NotImplementedError
+		raise SyntaxError("{0}.sub not implemented".format(self))
+
+	def expand( self ):
+		return self
+
+class Parens( Value ):
+
+	def expand( self ):
+		return self.value.expand()
+
+	def __repr__( self ):
+		return "<Parens {0}>".format(self.value)
 
 class Reference( Value ):
-	pass
+
+	def expand( self ):
+		value = self.resolve(self.value)
+		if value is None:
+			raise SyntaxError("Variable `{0}` not defined in {1}".format(self.value, self.parent()))
+		return value.expand()
+
+	def eval( self ):
+		return self.expand().eval()
+
+	def write( self, stream ):
+		return self.expand().write(stream)
 
 class URL( Value ):
 
@@ -270,25 +333,25 @@ class Number( Value ):
 		if isinstance(value, Number):
 			return Number(self.eval() + value.eval(), self.mergeunit(value.unit))
 		else:
-			raise NotImplementedError
+			raise SyntaxError("{0}.add({1}) not implemented".format(self, value))
 
 	def sub( self, value ):
 		if isinstance(value, Number):
 			return Number(self.eval() - value.eval(), self.mergeunit(value.unit))
 		else:
-			raise NotImplementedError
+			raise SyntaxError("{0}.sub({1}) not implemented".format(self, value))
 
 	def mul( self, value ):
 		if isinstance(value, Number):
 			return Number(self.eval() * value.eval(), self.mergeunit(value.unit))
 		else:
-			raise NotImplementedError
+			raise SyntaxError("{0}.mul({1}) not implemented".format(self, value))
 
 	def div( self, value ):
 		if isinstance(value, Number):
 			return Number(self.eval() / value.eval(), self.mergeunit(value.unit))
 		else:
-			raise NotImplementedError
+			raise SyntaxError("{0}.div({1}) not implemented".format(self, value))
 
 	def mergeunit( self, b):
 		a = self.unit
@@ -307,6 +370,9 @@ class Number( Value ):
 			if value == int(value):
 				value = int(value)
 		stream.write("{0}{1}".format(value, self.unit or ""))
+
+	def __repr__( self ):
+		return "<Number {0}{1}>".format(self.value, self.unit or "", id(self))
 
 class RGB( Value ):
 
@@ -346,26 +412,55 @@ class List( Leaf, Output ):
 class Computation( Value ):
 
 	def __init__( self, operator, lvalue, rvalue=None ):
+		Value.__init__(self)
 		self.operator = operator
-		self.lvalue   = lvalue
-		self.rvalue   = rvalue
+		self._lvalue  = None
+		self._rvalue  = None
+		self.lvalue(lvalue)
+		self.rvalue(rvalue)
+
+	def lvalue( self, value=NOTHING ):
+		if value is NOTHING:
+			return self._lvalue
+		else:
+			if isinstance(value, Element):
+				value.parent(self)
+			self._lvalue = value
+			return self
+
+	def rvalue( self, value=NOTHING ):
+		if value is NOTHING:
+			return self._rvalue
+		else:
+			if isinstance(value, Element):
+				value.parent(self)
+			self._rvalue = value
+			return self
 
 	def eval( self, context=None ):
 		result = None
+		lvalue = self.lvalue().expand()
+		rvalue = self.rvalue().expand()
 		if   self.operator == "*":
-			result = self.lvalue.mul(self.rvalue)
+			result = lvalue.mul(rvalue)
 		elif self.operator == "-":
-			result = self.lvalue.sub(self.rvalue)
+			result = lvalue.sub(rvalue)
 		elif self.operator == "+":
-			result = self.lvalue.add(self.rvalue)
+			result = lvalue.add(rvalue)
 		elif self.operator == "/":
-			result = self.lvalue.div(self.rvalue)
+			result = lvalue.div(rvalue)
 		else:
 			raise Exception("Unsuported computation operator: {0}".format(self.operator))
 		return result
 
+	def expand( self ):
+		return self.eval()
+
 	def write( self, stream=sys.stdout):
 		self.eval().write(stream)
+
+	def __repr__( self ):
+		return "<Computation {1} {0} {2} at {3}>".format(self.operator, self.lvalue(), self.rvalue(), id(self))
 
 # -----------------------------------------------------------------------------
 #
@@ -395,6 +490,22 @@ class ModuleDirective( Directive, Named ):
 	def write( self, stream=sys.stdout):
 		pass
 
+class ImportDirective( Directive ):
+
+	def __init__( self, value ):
+		Directive.__init__(self, value)
+
+class Invocation( Directive ):
+
+	def __init__( self, name, arguments):
+		Directive.__init__(self, arguments)
+		self.name     = name
+		self.arguments = arguments
+		self.target    = None
+
+
+	def write( self, stream=sys.stdout):
+		pass
 class MacroInvocation( Directive ):
 
 	def __init__( self, name, arguments):
@@ -411,22 +522,28 @@ class MacroInvocation( Directive ):
 		block = macro.apply(self.arguments, self.parent())
 		block.write(stream)
 
-class Variable( Directive ):
+class Variable( Value, Named ):
 
 	def __init__( self, name, value, decorator=None ):
-		Directive.__init__(self, value)
-		self.name = name
+		Value.__init__(self, value)
+		Named.__init__(self, name)
 		self.decorator = decorator
+
+	def eval( self ):
+		return self.value.eval()
+
+	def expand( self ):
+		return self.value
 
 	def write( self, stream=sys.stdout):
 		pass
 
+
 class Property( Leaf, Output ):
 
 	def __init__( self, name, value, important=None):
-		Leaf.__init__(self)
+		Leaf.__init__(self, value)
 		self.name  = name
-		self.value = value
 		self.important = important
 
 	def write( self, stream=sys.stdout):

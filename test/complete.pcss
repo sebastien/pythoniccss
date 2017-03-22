@@ -29,6 +29,8 @@
 // the same from CleverCSS's documentation).
 // 
 
+@module complete
+
 ul#comments, ol#comments:
 	margin: 0
 	padding: 0
@@ -86,10 +88,6 @@ div[data-type=1.0]:
 div#Application.widget.application[data-type=Application]:hover:
 	font-size: 100%
 
-// Some rules will also be automatically prefixed, for instance:
-
--placeholder:
-
 // will generate:
 //
 // `-moz-placeholder, -webkit-placeholder`
@@ -125,7 +123,11 @@ width: calc("10em * 3.5")
 
 width: "calc(10em * 3.5)"
 
+width: calc(`10em * 3.5`)
+
 // PCSS allows for implicit concatenation, as shown in the example below
+
+foo = 10
 
 label1:
 	padding: $foo + 2 + 3 $foo - 2
@@ -147,7 +149,7 @@ transition-property: color transform filter
 // on the browser. If CSS3 does not already have a recommendation, WebKit's 
 // format will be chosen.
 
-background: linear-gradient(to bottom, #1e5799 0%, #2989d8 50%, #207cca 51%, #7db9e8 100%)
+background: linear-gradient(`to bottom, #1e5799 0%, #2989d8 50%, #207cca 51%, #7db9e8 100%`)
 
 // will generated the following CSS code (thanks http://www.colorzilla.com/gradient-editor/)
 //
@@ -167,7 +169,7 @@ background: linear-gradient(to bottom, #1e5799 0%, #2989d8 50%, #207cca 51%, #7d
 // The `PATH` will be resolved relatively to the current file, and if not found
 // will be resolved relatively to the current working directory. 
 
-%include test-include.pcss
+@import units
 
 // Variables
 // =========
@@ -192,7 +194,7 @@ BACKGROUND_COLOR_ALT = #F0F0F0
 // If you would like to embed an image as a data-url, you can do it by
 // using the `.embed()` method call after an `url()` property.
 
-background-image: url(http://ffctn.com/lib/images/nothing.png).embed()
+// background-image: url(http://ffctn.com/lib/images/nothing.png)
 
 // which will download/retrieve the file and produce a base-64 encoded
 // data URL version of it.
@@ -223,6 +225,7 @@ div.cleared:
 // other PCSS block.
 
 // Keyframes with from/to
+
 @keyframes animation1:
 	from:
 		background: red
@@ -240,15 +243,15 @@ div.cleared:
 // Font-Face
 // ---------
 
-@font-face:
-	font-family: asdas
-
-// Media queries
-// -------------
-
-@media[screen and (max-width: 300px)]:
-	body:
-		background-color: lightblue
+// @font-face:
+// 	font-family: asdas
+// 
+// // Media queries
+// // -------------
+// 
+// @media[screen and (max-width: 300px)]:
+// 	body:
+// 		background-color: lightblue
 
 // Import
 // -------
