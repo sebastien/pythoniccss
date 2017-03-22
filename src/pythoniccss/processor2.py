@@ -35,44 +35,46 @@ class PCSSProcessor(Processor):
 		indent     = self.process(match["indent"])
 		selections = self.process(match["selections"])[0]
 		code       = self.process(match["code"])
-		return self.F.block().select(selections).add(code)
+		return self.F.block().select(selections).add(code).indent(indent)
 
 	def onStatement( self, match ):
 		indent  = self.process(match["indent"])
 		op      = self.process(match["op"])[0]
-		# TODO: Set indent
-		return op
-
-	def onDefinition( self, match ):
-		print ("DEFINITION")
+		return op.indent(indent)
 
 	def onDirective( self, match ):
 		directive = self.process(match["directive"])
 		value     = self.process(match["value"])
 		return self.F.directive(directive, value)
 
+	def onMacroDeclaration( self, match, name, parameters ):
+		return self.F.macro(name, parameters)
+
+	def onMacroBlock( self, match, indent, type, code):
+		return type.add(code).indent(indent)
+
+	def onMacroInvocation( self, match, name, arguments ):
+		return self.F.invokemacro(name, arguments)
+
 	# =========================================================================
 	# STATEMENTS
 	# =========================================================================
 
-	# FIXME: Rename to something else
-
-	def onAssignment( self, match ):
+	def onCSSProperty( self, match ):
 		"""The main CSS declaration."""
 		name      = self.process(match["name"])
-		values    = self.F.list(self.process(match["values"]))
+		values    = self.F.list(self.process(match["values"])).unwrap()
 		important = self.process(match["important"])
 		return self.F.property(name, values, important)
 
-	def onDefinition( self, match ):
+	def onVariableDeclaration( self, match ):
 		"""The statement of a declaration."""
 		return self.process(match["declaration"])
 
-	def onDeclaration( self, match ):
+	def onVariable( self, match, decorator, name, value ):
 		"""The declaration of a variable or special directive
 		such as @unit."""
-		decorator = self.process(match["decorator"])
-		name      = self.process(match["name"])
+		return self.F.var(name, value, decorator)
 
 	# =========================================================================
 	# EXPRESSION
@@ -80,15 +82,18 @@ class PCSSProcessor(Processor):
 
 	def onExpressionList( self, match, head, tail):
 		tail  = [_[1] for _  in tail]
-		return self.F.list([head] + tail, ",")
+		return self.F.list([head] + tail, ",").unwrap()
 
 	def onPrefix( self, match ):
 		return self.process(match)[0]
 
+	def onSuffix( self, match ):
+		return self.process(match[0])
+
 	def onExpression( self, match, prefix, suffixes ):
 		prefix = prefix[1] if not isinstance(prefix, Element) else prefix
-		for _ in suffixes:
-			prefix = prefix.suffix(_)
+		for op, rvalue in suffixes:
+			prefix = prefix.suffix(op, rvalue)
 		return prefix
 
 	# =========================================================================
@@ -96,13 +101,16 @@ class PCSSProcessor(Processor):
 	# =========================================================================
 
 	def onValue( self, match ):
-		return self.process(match[0])[0]
+		return self.process(match[0])
 
 	def onNumber( self, match, value, unit ):
 		value = float(value) if "." in value else int(value)
 		unit  = unit if unit else None
 		if unit == "%": value = value / 100.0
 		return self.F.number(value, unit)
+
+	def onString( self, match ):
+		return self.process(match[0])
 
 	def onURL(self, match ):
 		return self.F.url(self.process(match)[0])
@@ -149,7 +157,7 @@ class PCSSProcessor(Processor):
 		return self.F.comment(self.process(match)[0][2:])
 
 	def onComment( self, match ):
-		return self.F.comment("\n".join([self.process(_).value for _ in match]))
+		return self.F.comment("\n".join(_.value for _ in self.process(match[0])))
 
 	# =========================================================================
 	# SELECTIONS
@@ -165,7 +173,7 @@ class PCSSProcessor(Processor):
 		tail = self.process(match["tail"])
 		for op, sel in tail:
 			if sel:
-				head = head.narrow(op, sel)
+				head = head.narrow(sel, op.strip() if op else None)
 		return head
 
 	def onSelector( self, match ):
@@ -196,8 +204,6 @@ class PCSSProcessor(Processor):
 
 	def onCheckIndent( self, match ):
 		return len(self.process(match["tabs"]))
-
-
 
 	# =========================================================================
 	# GENERIC GRAMMAR RULES

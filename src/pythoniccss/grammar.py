@@ -129,7 +129,7 @@ def grammar(g=None):
 	# VALUES & EXPRESSIONS
 	# =========================================================================
 
-	g.group     ("Suffixes")
+	g.group     ("Suffix")
 	g.rule      ("Number",           s.NUMBER._as("value"), s.UNIT.optional()._as("unit"))
 	# TODO: Add RawString
 	g.group     ("String",           s.STRING_BQ, s.STRING_SQ, s.STRING_DQ, s.STRING_UQ)
@@ -142,21 +142,20 @@ def grammar(g=None):
 	# NOTE: We use Prefix and Suffix to avoid recursion, which creates a lot
 	# of problems with parsing expression grammars
 	g.group     ("Prefix", s.Value, g.arule(s.LP, s.Expression, s.RP))
-	s.Expression.set(s.Prefix._as("prefix"), s.Suffixes.zeroOrMore()._as("suffixes"))
+	s.Expression.set(s.Prefix._as("prefix"), s.Suffix.zeroOrMore()._as("suffixes"))
 
 	g.rule      ("Invocation",   g.arule(s.DOT,     s.METHOD_NAME).optional()._as("method"), s.LP, s.Arguments.optional()._as("arguments"), s.RP)
 	g.rule      ("InfixOperation", s.INFIX_OPERATOR, s.Expression)
 	# TODO: Might be better to use COMMA as a suffix to chain expressions
-	s.Suffixes.set(s.InfixOperation, s.Invocation)
+	s.Suffix.set(s.InfixOperation, s.Invocation)
 
 	# =========================================================================
 	# OPERATIONS
 	# =========================================================================
 
-	g.rule      ("Assignment",       s.CSS_PROPERTY._as("name"), s.COLON, s.ExpressionList.oneOrMore()._as("values"), s.IMPORTANT.optional()._as("important"), s.SEMICOLON.optional())
-	#g.rule      ("Assignment",       s.CSS_PROPERTY._as("name"), s.COLON, s.Expression.oneOrMore()._as("values"), s.IMPORTANT.optional()._as("important"), s.SEMICOLON.optional())
+	g.rule      ("CSSProperty",      s.CSS_PROPERTY._as("name"), s.COLON, s.ExpressionList.oneOrMore()._as("values"), s.IMPORTANT.optional()._as("important"), s.SEMICOLON.optional())
 	g.rule      ("MacroInvocation",  s.NAME._as("name"),   s.LP, s.Arguments.optional()._as("arguments"), s.RP)
-	g.rule      ("Declaration",      s.SPECIAL_NAME.optional()._as("decorator"), s.VARIABLE_NAME._as("name"), s.EQUAL, s.ExpressionList._as("value"))
+	g.rule      ("Variable",   s.SPECIAL_NAME.optional()._as("decorator"), s.VARIABLE_NAME._as("name"), s.EQUAL, s.ExpressionList._as("value"))
 
 	# =========================================================================
 	# LINES (BODY)
@@ -165,7 +164,7 @@ def grammar(g=None):
 	g.rule      ("Comment",          s.COMMENT.oneOrMore(), s.EOL)
 	g.rule      ("Include",          s.INCLUDE, s.PATH._as("path"),  s.EOL)
 	# FIXME: Not sure why definition needs to be standalone
-	g.rule      ("Definition",       s.Declaration._as("declaration"), s.EOL)
+	g.rule      ("VariableDeclaration",       s.Variable._as("declaration"), s.EOL)
 	# FIXME: If we remove optional() from SPECIAL_NAME, we get a core dump...
 	g.rule      ("Directive",        s.SPECIAL_NAME.optional()._as("directive"), s.VARIABLE_NAME._as("value"), s.EOL)
 	g.rule      ("CSSDirective",     s.CSS_DIRECTIVE._as("directive"),  s.REST._as("value"), s.EOL)
@@ -178,7 +177,7 @@ def grammar(g=None):
 	# of the failures. A good idea would be to append the indentation value to
 	# the caching key.
 	# .processMemoizationKey(lambda _,c:_ + ":" + c.getVariables().get("requiredIndent", 0))
-	g.rule("Statement",     s.CheckIndent._as("indent"), g.agroup(s.Assignment, s.MacroInvocation, s.Declaration, s.COMMENT)._as("op"), s.EOL)
+	g.rule("Statement",     s.CheckIndent._as("indent"), g.agroup(s.CSSProperty, s.MacroInvocation, s.VariableDeclaration, s.COMMENT)._as("op"), s.EOL)
 	# FIXME: Not clear why there's a PERCENTAGE here
 	g.rule("Block",         s.CheckIndent._as("indent"), g.agroup(s.PERCENTAGE, s.Selections)._as("selections"), s.COLON.optional(), s.EOL, s.Indent, s.Statement.zeroOrMore()._as("code"), s.Dedent)
 
@@ -193,7 +192,7 @@ def grammar(g=None):
 	# AXIOM
 	# =========================================================================
 
-	g.group     ("Source",  g.agroup(s.Comment, s.Block, s.MacroBlock, s.CSSDirective, s.Directive, s.SpecialBlock, s.Definition, s.Include).zeroOrMore())
+	g.group     ("Source",  g.agroup(s.Comment, s.Block, s.MacroBlock, s.CSSDirective, s.Directive, s.SpecialBlock, s.VariableDeclaration, s.Include).zeroOrMore())
 	g.skip  = s.SPACE
 	g.axiom = s.Source
 	g.prepare()
