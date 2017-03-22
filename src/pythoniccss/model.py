@@ -18,6 +18,9 @@ Defines an abstract model for CSS stylesheets.
 
 NOTHING = object()
 
+class SyntaxError(Exception):
+	pass
+
 # -----------------------------------------------------------------------------
 #
 # FACTORY
@@ -181,6 +184,11 @@ class Node( Element ):
 		self.content.append(value)
 		value.parent(self)
 		return value
+
+	def iter( self, predicate=None ):
+		for _ in self.content:
+			if predicate is None or predicate(_):
+				yield _
 
 	def lastWithIndent( self, indent, like=None ):
 		for i in range(len(self.content) - 1, -1, -1):
@@ -364,7 +372,11 @@ class Directive( Leaf):
 	def apply( self, context ):
 		raise NotImplementedError
 
-class ModuleDirective( Directive ):
+class ModuleDirective( Directive, Named ):
+
+	def __init__( self, value ):
+		Directive.__init__(self, value)
+		Named.__init__(self, "__module__")
 
 	def apply( self, context ):
 		context.set("__module__", self.value)
@@ -381,7 +393,10 @@ class MacroInvocation( Directive ):
 
 	def write( self, stream=sys.stdout):
 		macro = self.resolve(self.name)
-		assert macro and isinstance(macro, Macro)
+		if not macro:
+			raise SyntaxError("Macro cannot be resolved: {0}".format(self.name))
+		if not isinstance(macro, Macro):
+			raise SyntaxError("Macro invocation does not resolve to a macro: {0} = {1}".format(self.name, macro))
 		block = macro.apply(self.arguments, self.parent())
 		block.write(stream)
 
@@ -470,6 +485,13 @@ class Block(Node):
 			self._isDirty = True
 		return self
 
+	# FIXME: Attempts at pruning out duplicates
+	# def add( self, value ):
+	# 	if isinstance(value, Property) and next(self.iter(lambda _:isinstance(_,Property) and _.name == value.name), False):
+	# 		return self
+	# 	else:
+	# 		return super(Block, self).add(value)
+
 	def parent( self, value=NOTHING ):
 		if value is not NOTHING: self._isDirty = True
 		return super(Node, self).parent(value)
@@ -478,17 +500,21 @@ class Block(Node):
 		if self._isDirty:
 			r  = []
 			pb = self.ancestor(Block)
-			ps = [_.copy() for _ in pb.selectors()] if pb else []
+			ps = [_ for _ in pb.selectors()] if pb else []
 			bs = self.selections
 			if ps:
 				if not bs:
-					r += ps
+					r += [_.copy() for _ in ps]
 				else:
 					for prefix in ps:
 						for suffix in bs:
-							r.append(prefix.narrow(suffix))
+							r.append(prefix.copy().narrow(suffix.copy()))
 			else:
 				r += bs
+			module = self.resolve("__module__")
+			if module:
+				namespace = module.value
+				r = [_.ns(namespace) for _ in r]
 			self._selectors = r
 			self._isDirty   = False
 		return self._selectors
@@ -498,8 +524,11 @@ class Block(Node):
 		# direct child with significant output.
 		if next((_ for _ in self.content if isinstance(_, Output)), False):
 			sel = self.selectors()
-			for _ in sel:
+			l = len(sel) - 1
+			for i,_ in enumerate(sel):
 				_.write(stream)
+				if i < l:
+					stream.write(", ")
 			if sel:
 				stream.write(":\n")
 		for _ in self.content:
@@ -545,7 +574,7 @@ class Selector(Leaf):
 	"""Reprents a node selector, include node name, classes, id, attributes
 	and suffixes. Selectors can be chained together"""
 
-	def __init__( self, node, id, classes, attributes, suffix ):
+	def __init__( self, node="", id="", classes="", attributes="", suffix="" ):
 		Leaf.__init__(self)
 		self.node       = node
 		self.id         = id
@@ -553,6 +582,11 @@ class Selector(Leaf):
 		self.attributes = attributes
 		self.suffix     = suffix
 		self.next       = None
+		self.namespace  = None
+
+	def ns( self, value ):
+		self.namespace = value
+		return self
 
 	def copy( self ):
 		sel = Selector(self.node, self.id, self.classes, self.attributes, self.suffix)
@@ -572,7 +606,11 @@ class Selector(Leaf):
 	def narrow( self, selector, operator=None):
 		"""Returns a copy of this selector prefixed with the given selector."""
 		last = self.last()
-		if selector.node == "&":
+		if self.isBEMPrefix() and selector.isBEMSuffix():
+			last.mergeBEM(selector)
+			last.next = selector.next
+		elif selector.node == "&":
+			assert self.node == "&" or selector.node == "&"
 			last.merge(selector)
 			last.next = selector.next
 		else:
@@ -586,7 +624,6 @@ class Selector(Leaf):
 	def merge( self, selector ):
 		"""Merges the given selector with this one. This takes care of the
 		'&'."""
-		assert self.node == "&" or selector.node == "&"
 		self.node        = self.node if selector.node == "&" else selector.node
 		self.id         += selector.id
 		self.classes    += selector.classes
@@ -594,16 +631,48 @@ class Selector(Leaf):
 		self.suffix     += selector.suffix
 		return self
 
-	def expr( self, single=False ):
-		res = u"{0}{1}{2}{3}{4}".format(self.node, self.id, self.classes, self.attributes, self.suffix)
+
+	def mergeBEM( self, selector ):
+		pa=[] ; ca=[]
+		for _ in self.classes.split("."):
+			if not _: continue
+			(pa if _.endswith("-") else ca).append(_)
+		pb=[] ; cb=[]
+		for _ in selector.classes.split("."):
+			if not _: continue
+			(pb if _.startswith("-") else cb).append(_)
+		assert len(pa) == 1, "Expected 1 BEM prefix, got: {0}".format(pa)
+		assert len(pb) == 1, "Expected 1 BEM suffix, got: {0}".format(pb)
+		classes = ".".join([pa[0] + pb[0][1:]] + ca + cb)
+		classes = "." + classes if classes else ""
+		self.merge(selector)
+		self.classes = classes
+		return self
+
+	def expr( self, single=False, namespace=True ):
+		classes = self.classes
+		if classes:
+			classes = ".".join(_[0:-1] if _.endswith("-") else _ for _ in classes.split("."))
+		res = u"{0}{1}{2}{3}{4}".format(self.node, self.id, classes, self.attributes, self.suffix)
+		if namespace and self.namespace:
+			res = ".use-{0} ".format(self.namespace) + res
 		if not single and self.next:
 			op, sel = self.next
 			res += " "
 			if op and op != " ":
 				res += op
 				res += " "
-			res += sel.expr()
+			res += sel.expr(namespace=False)
 		return res
+
+	def isBEMPrefix( self ):
+		return self.classes.endswith("-") or "-." in self.classes
+
+	def isBEMSuffix( self ):
+		return self.classes.startswith("-") or ".-" in self.classes
+
+	def isBEM( self ):
+		return self.isBEMPrefix() or self.isBEMSuffix()
 
 	def write( self, stream=sys.stdout ):
 		stream.write(self.expr())

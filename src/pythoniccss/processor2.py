@@ -35,6 +35,7 @@ class PCSSProcessor(Processor):
 		indent     = self.process(match["indent"])
 		selections = self.process(match["selections"])[0]
 		code       = self.process(match["code"])
+		print ("SELECTIONS", selections)
 		return self.F.block().select(selections).add(code).indent(indent)
 
 	def onStatement( self, match ):
@@ -166,7 +167,7 @@ class PCSSProcessor(Processor):
 	def onSelections( self, match ):
 		head = self.process(match["head"])
 		tail = self.process(match["tail"])
-		return [head] + (tail or [])
+		return [head] + ([_[1] for _ in tail or []])
 
 	def onSelection( self, match ):
 		head = self.process(match["head"])

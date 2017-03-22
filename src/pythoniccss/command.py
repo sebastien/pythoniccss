@@ -38,7 +38,7 @@ def convert(path):
 		s.close()
 		return v
 	else:
-		raise Exception("Parsing of {0} failed at line:{1}\n> {2}".format("string", result.line, result.textAround()))
+		raise Exception("Parsing of {0} failed at line:{1}\n> {2}".format("string", result.line, result.describe()))
 
 def run(args):
 	"""Processes the command line arguments."""
@@ -105,9 +105,9 @@ def run(args):
 				msg = "Parsing of `{0}` failed at line:{1}#{2}".format(path, result.line, result.offset)
 				logging.error(msg)
 				logging.error("{0} lines".format( len(open(path).read()[0:result.offset].split("\n"))))
-				logging.error(result.textAround())
+				logging.error(result.describe())
 				# FIXME: This is inaccurate, the parsingresult does not return
-				raise Exception("Parsing of `{0}` failed at line:{1}\n> {2}".format(path, result.line, result.textAround()))
+				raise Exception("Parsing of `{0}` failed at line:{1}\n> {2}".format(path, result.line, result.describe()))
 	if args.output:
 		output.close()
 
