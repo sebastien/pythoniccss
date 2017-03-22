@@ -35,7 +35,6 @@ class PCSSProcessor(Processor):
 		indent     = self.process(match["indent"])
 		selections = self.process(match["selections"])[0]
 		code       = self.process(match["code"])
-		print ("SELECTIONS", selections)
 		return self.F.block().select(selections).add(code).indent(indent)
 
 	def onStatement( self, match ):
@@ -56,6 +55,21 @@ class PCSSProcessor(Processor):
 
 	def onMacroInvocation( self, match, name, arguments ):
 		return self.F.invokemacro(name, arguments)
+
+	def onKeyframesBlock( self, match, indent, name, frames ):
+		return self.F.keyframes(name).add(frames).indent(indent)
+
+	def onKeyframe( self, match, indent, selector, code):
+		return self.F.keyframe(selector).add(code).indent(indent)
+
+	def onKeyframeSelector( self, match):
+		value = self.process(match[0])
+		if value == "from":
+			return self.F.number(0, "%")
+		if value == "to":
+			return self.F.number(100, "%")
+		value.unit = value.unit or "%"
+		return value
 
 	# =========================================================================
 	# STATEMENTS

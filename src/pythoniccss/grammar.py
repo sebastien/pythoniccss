@@ -76,6 +76,7 @@ def grammar(g=None):
 	g.word    ("SELF",             "&")
 	g.word    ("COMMA",            ",")
 	g.word    ("MACRO",            "@macro")
+	g.word    ("KEYFRAMES",        "@keyframes")
 	g.word    ("SEMICOLON",        ";")
 	g.word    ("LSBRACKET",        "[")
 	g.word    ("RSBRACKET",        "]")
@@ -184,6 +185,10 @@ def grammar(g=None):
 	g.rule    ("MacroDeclaration", s.MACRO, s.NAME._as("name"), s.Parameters.optional()._as("parameters"), s.COLON.optional())
 	g.rule    ("MacroBlock",       s.CheckIndent._as("indent"), s.MacroDeclaration._as("type"), s.EOL, s.Indent, s.Statement.zeroOrMore()._as("code"), s.Dedent)
 
+	g.group   ("KeyframeSelector",  g.aword("from"), g.aword("to"), s.Number)
+	g.rule    ("Keyframe",         s.CheckIndent._as("indent"), s.KeyframeSelector._as("selector"), s.EOL, s.Indent, s.Statement.zeroOrMore()._as("code"), s.Dedent)
+	g.rule    ("KeyframesBlock",   s.CheckIndent._as("indent"), s.KEYFRAMES, s.NAME._as("name"), s.EOL, s.Indent, s.Keyframe.zeroOrMore()._as("frames"), s.Dedent)
+
 	# FIXME: The special declaration is a bit broken... should work better
 	g.rule    ("SpecialDeclaration",   s.SPECIAL_NAME._as("type"), s.SPECIAL_FILTER.optional()._as("filter"),  s.NAME.optional()._as("name"), s.Parameters.optional()._as("parameters"), s.COLON.optional())
 	g.rule    ("SpecialBlock",         s.CheckIndent._as("indent"), s.SpecialDeclaration._as("type"), s.EOL, s.Indent, s.Statement.zeroOrMore()._as("code"), s.Dedent)
@@ -192,7 +197,7 @@ def grammar(g=None):
 	# AXIOM
 	# =========================================================================
 
-	g.group     ("Source",  g.agroup(s.Comment, s.Block, s.MacroBlock, s.CSSDirective, s.Directive, s.SpecialBlock, s.VariableDeclaration, s.Include).zeroOrMore())
+	g.group     ("Source",  g.agroup(s.Comment, s.Block, s.MacroBlock, s.KeyframesBlock, s.CSSDirective, s.Directive, s.SpecialBlock, s.VariableDeclaration, s.Include).zeroOrMore())
 	g.skip  = s.SPACE
 	g.axiom = s.Source
 	g.prepare()

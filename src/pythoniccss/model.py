@@ -53,6 +53,12 @@ class Factory(object):
 	def list( self, value, separator=None ):
 		return List(value, separator)
 
+	def keyframes( self, name ):
+		return Keyframes(name)
+
+	def keyframe( self, selector ):
+		return Keyframe(selector)
+
 	def property( self, name, value, important):
 		return Property(name, value, important)
 
@@ -295,7 +301,12 @@ class Number( Value ):
 		raise Exception("Cannot cast unify units {0} and {1}".format(a, b))
 
 	def write( self, stream=sys.stdout):
-		stream.write("{0}{1}".format(self.eval(), self.unit or ""))
+		value = self.eval()
+		if self.unit == "%":
+			value = value * 100
+			if value == int(value):
+				value = int(value)
+		stream.write("{0}{1}".format(value, self.unit or ""))
 
 class RGB( Value ):
 
@@ -522,17 +533,19 @@ class Block(Node):
 	def write( self, stream=sys.stdout):
 		# Here we only output the selectors if we know we have one
 		# direct child with significant output.
-		if next((_ for _ in self.content if isinstance(_, Output)), False):
+		has_content = next((_ for _ in self.content if isinstance(_, Output)), False)
+		if has_content:
 			sel = self.selectors()
 			l = len(sel) - 1
 			for i,_ in enumerate(sel):
 				_.write(stream)
 				if i < l:
 					stream.write(", ")
-			if sel:
-				stream.write(":\n")
+			stream.write("{\n")
 		for _ in self.content:
 			_.write(stream)
+		if has_content:
+			stream.write("}\n")
 
 	def __repr__( self ):
 		return "<Block `{0}` at {1}>".format(", ".join(_.expr() for _ in self.selections), id(self))
@@ -553,12 +566,46 @@ class Macro( Node, Named ):
 	def write( self, stream=sys.stdout):
 		pass
 
+
+class Keyframes( Node, Named ):
+
+	def __init__( self, name ):
+		Node.__init__(self)
+		Named.__init__(self, name)
+
+	def write( self, stream=sys.stdout):
+		stream.write("@keyframes ")
+		stream.write(self.name)
+		stream.write(" {\n")
+		for _ in self.content:
+			_.write(stream)
+		stream.write("}\n")
+
+class Keyframe( Node ):
+
+	def __init__( self, selector ):
+		Node.__init__(self)
+		self.selector = selector
+
+	def write( self, stream=sys.stdout):
+		stream.write("\t")
+		if self.selector.value == 100 and self.selector.unit == "%":
+			stream.write("to")
+		elif self.selector.value == 0 and self.selector.unit == "%":
+			stream.write("from")
+		else:
+			self.selector.write(stream)
+		stream.write(" {\n")
+		for _ in self.content:
+			stream.write("\t")
+			_.write(stream)
+		stream.write("\t}\n")
+
+
 class Stylesheet(Node):
 
 	def __init__( self ):
 		Node.__init__(self)
-
-
 
 	def write( self, stream=sys.stdout ):
 		for _ in self.content:
