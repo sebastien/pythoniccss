@@ -66,8 +66,6 @@ def grammar(g=None, isVerbose=False):
 	g.token   ("ATTRIBUTE_OPERATOR",  "[\^]?=")
 	g.token   ("SELECTOR_SUFFIX",  "::?[\-a-z][a-z0-9\-]*(\([^\)]+\))?")
 	g.token   ("SELECTION_OPERATOR", "\>|\+|\~|[ ]+")
-	g.token   ("REST",              ".+")
-	g.word    ("INCLUDE",          "@include")
 	g.word    ("EQUAL",             "=")
 	g.word    ("COLON",            ":")
 	g.word    ("DOT",              ".")
@@ -76,8 +74,12 @@ def grammar(g=None, isVerbose=False):
 	g.word    ("RP",               ")")
 	g.word    ("SELF",             "&")
 	g.word    ("COMMA",            ",")
-	g.word    ("MACRO",            "@macro")
-	g.word    ("KEYFRAMES",        "@keyframes")
+	g.word    ("OMACRO",           "@macro")
+	g.word    ("OKEYFRAMES",       "@keyframes")
+	g.word    ("OIMPORT",          "@import")
+	g.word    ("OINCLUDE",         "@include")
+	g.word    ("OUNIT",            "@unit")
+	g.word    ("OMODULE",          "@module")
 	g.word    ("SEMICOLON",        ";")
 	g.word    ("LSBRACKET",        "[")
 	g.word    ("RSBRACKET",        "]")
@@ -94,8 +96,6 @@ def grammar(g=None, isVerbose=False):
 	g.token   ("NODE_CLASS",       "(\.[\-_a-zA-Z][_a-zA-Z0-9_\-]*)+")
 	g.token   ("NODE_ID",          "#[_a-zA-Z][_a-zA-Z0-9\-]*")
 
-	# SEE: http://www.w3schools.com/cssref/css_units.asp
-	#g.token   ("UNIT",             "em|ex|px|pem|cm|mm|in|pt|pc|ch|rem|vh|vmin|vmax|s|deg|rad|grad|ms|Hz|kHz|\%")
 	g.token   ("UNIT",             "[a-zA-z]+|\%")
 	g.token   ("VARIABLE_NAME",    "[\w_][\w\d_]*")
 	g.token   ("METHOD_NAME",      "[\w_][\w\d_]*")
@@ -106,9 +106,6 @@ def grammar(g=None, isVerbose=False):
 	g.token   ("COLOR_RGB",        "rgba?\((\s*\d+\s*,\s*\d+\s*,\s*\d+\s*(,\s*\d+(\.\d+)?\s*)?)\)")
 	g.token   ("URL",              "url\((\"[^\"]*\"|\'[^\']*\'|[^\)]*)\)")
 	g.token   ("CSS_PROPERTY",    "[\-a-z][\-a-z0-9]*")
-	g.token   ("SPECIAL_NAME",     "@[A-Za-z][A-Za-z0-9\_\-]*")
-	g.token   ("CSS_DIRECTIVE",    "@@[A-Za-z][A-Za-z0-9\_\-]*")
-	g.token   ("SPECIAL_FILTER",   "\[[^\]]+\]")
 
 	# =========================================================================
 	# INDENTATION
@@ -124,8 +121,8 @@ def grammar(g=None, isVerbose=False):
 	g.rule      ("Selector",         g.agroup(s.SELF, s.NODE).optional()._as("node"), s.NODE_ID.optional()._as("nid"), s.NODE_CLASS.optional()._as("nclass"), s.Attributes.zeroOrMore()._as("attributes"), s.SELECTOR_SUFFIX.zeroOrMore()._as("suffix"))
 	g.rule      ("SelectorNarrower", s.SELECTION_OPERATOR._as("op"), s.Selector._as("sel"))
 
-	g.rule      ("Selection",        s.Selector.notEmpty()._as("head"),  s.SelectorNarrower.zeroOrMore()._as("tail"))
-	g.rule      ("Selections",       s.Selection._as("head"), g.arule(s.COMMA, s.Selection).zeroOrMore()._as("tail"))
+	g.rule      ("Selection",        s.Selector._as("head"),  s.SelectorNarrower.zeroOrMore()._as("tail"))
+	g.rule      ("Selections",       s.Selection._as("head").notEmpty(), g.arule(s.COMMA, s.Selection).zeroOrMore()._as("tail"))
 
 	# =========================================================================
 	# VALUES & EXPRESSIONS
@@ -158,19 +155,25 @@ def grammar(g=None, isVerbose=False):
 
 	g.rule      ("CSSProperty",      s.CSS_PROPERTY._as("name"), s.COLON, s.ExpressionList.oneOrMore()._as("values"), s.IMPORTANT.optional()._as("important"), s.SEMICOLON.optional())
 	g.rule      ("MacroInvocation",  s.NAME._as("name"),   s.LP, s.Arguments.optional()._as("arguments"), s.RP)
-	g.rule      ("Variable",   s.SPECIAL_NAME.optional()._as("decorator"), s.VARIABLE_NAME._as("name"), s.EQUAL, s.ExpressionList._as("value"))
+	g.rule      ("Variable",  s.VARIABLE_NAME._as("name"), s.EQUAL, s.ExpressionList._as("value"))
 
 	# =========================================================================
 	# LINES (BODY)
 	# =========================================================================
 
-	g.rule      ("Comment",          s.COMMENT.oneOrMore(), s.EOL)
-	g.rule      ("Include",          s.INCLUDE, s.PATH._as("path"),  s.EOL)
-	# FIXME: Not sure why definition needs to be standalone
-	g.rule      ("VariableDeclaration", s.Variable._as("declaration"), s.EOL)
-	# FIXME: If we remove optional() from SPECIAL_NAME, we get a core dump...
-	g.rule      ("Directive",        s.SPECIAL_NAME.optional()._as("directive"), s.VARIABLE_NAME._as("value"), s.EOL)
-	g.rule      ("CSSDirective",     s.CSS_DIRECTIVE._as("directive"),  s.REST._as("value"), s.EOL)
+	g.rule      ("Comment",             s.COMMENT.oneOrMore(), s.EOL)
+	g.rule      ("Include",             s.OINCLUDE, s.SPACE, s.PATH._as("path"),  s.EOL)
+	g.rule      ("Import",              s.OIMPORT,  s.SPACE, g.agroup(s.NAME, s.String, s.URL)._as("source"), s.EOL)
+	g.rule      ("Module",              s.OMODULE,  s.SPACE, s.NAME._as("name"),  s.EOL)
+	g.rule      ("Unit",                s.OUNIT,    s.SPACE, s.NAME._as("name"),  s.EQUAL, s.Expression._as("value"), s.EOL)
+	g.rule      ("Assignment",          s.CheckIndent._as("indent"), s.Variable._as("declaration"),   s.EOL)
+	g.group     ("Directive",
+			s.Module,
+			s.Import,
+			s.Include,
+			s.Unit,
+			s.Assignment
+	)
 
 	# =========================================================================
 	# BLOCK STRUCTURE
@@ -184,22 +187,18 @@ def grammar(g=None, isVerbose=False):
 	# FIXME: Not clear why there's a PERCENTAGE here
 	g.rule("Block",         s.CheckIndent._as("indent"),  s.Selections._as("selections"), s.COLON.optional(), s.EOL, s.Indent, s.Statement.zeroOrMore()._as("code"), s.Dedent)
 
-	g.rule    ("MacroDeclaration", s.MACRO, s.NAME._as("name"), s.Parameters.optional()._as("parameters"), s.COLON.optional())
+	g.rule    ("MacroDeclaration", s.OMACRO, s.NAME._as("name"), s.Parameters.optional()._as("parameters"), s.COLON.optional())
 	g.rule    ("MacroBlock",       s.CheckIndent._as("indent"), s.MacroDeclaration._as("type"), s.EOL, s.Indent, s.Statement.zeroOrMore()._as("code"), s.Dedent)
 
 	g.group   ("KeyframeSelector",  g.aword("from"), g.aword("to"), s.Number)
 	g.rule    ("Keyframe",         s.CheckIndent._as("indent"), s.KeyframeSelector._as("selector"), s.COLON.optional(), s.EOL, s.Indent, s.Statement.zeroOrMore()._as("code"), s.Dedent)
-	g.rule    ("KeyframesBlock",   s.CheckIndent._as("indent"), s.KEYFRAMES, s.NAME._as("name"), s.COLON.optional(), s.EOL, s.Indent, s.Keyframe.zeroOrMore()._as("frames"), s.Dedent)
-
-	# FIXME: The special declaration is a bit broken... should work better
-	g.rule    ("SpecialDeclaration",   s.SPECIAL_NAME._as("type"), s.SPECIAL_FILTER.optional()._as("filter"),  s.NAME.optional()._as("name"), s.Parameters.optional()._as("parameters"), s.COLON.optional())
-	g.rule    ("SpecialBlock",         s.CheckIndent._as("indent"), s.SpecialDeclaration._as("type"), s.EOL, s.Indent, s.Statement.zeroOrMore()._as("code"), s.Dedent)
+	g.rule    ("KeyframesBlock",   s.CheckIndent._as("indent"), s.OKEYFRAMES, s.NAME._as("name"), s.COLON.optional(), s.EOL, s.Indent, s.Keyframe.zeroOrMore()._as("frames"), s.Dedent)
 
 	# =========================================================================
 	# AXIOM
 	# =========================================================================
 
-	g.group     ("Source",  g.agroup(s.Comment, s.Block, s.MacroBlock, s.KeyframesBlock, s.CSSDirective, s.Directive, s.SpecialBlock, s.VariableDeclaration, s.Include, s.EMPTY).zeroOrMore())
+	g.group     ("Source",  g.agroup(s.Comment, s.Block, s.MacroBlock, s.KeyframesBlock, s.Directive, s.Assignment, s.Include, s.EMPTY).zeroOrMore())
 	g.skip  = s.SPACE
 	g.axiom = s.Source
 	g.prepare()

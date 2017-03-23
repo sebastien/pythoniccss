@@ -28,6 +28,12 @@ OPERATOR_PRIORITY = {
 class SyntaxError(Exception):
 	pass
 
+class SemanticError(Exception):
+	pass
+
+class ImplementationError(Exception):
+	pass
+
 # -----------------------------------------------------------------------------
 #
 # FACTORY
@@ -132,7 +138,8 @@ class Element( object ):
 
 	def __init__( self ):
 		self._indent = None
-		self._parent  = None
+		self._parent = None
+		self.isNode  = False
 
 	def resolve( self, name ):
 		if isinstance( self, Node):
@@ -148,6 +155,9 @@ class Element( object ):
 		else:
 			self._parent = value
 			return self
+
+	def balance( self ):
+		pass
 
 	def ancestors( self ):
 		if self._parent:
@@ -198,6 +208,7 @@ class Node( Element ):
 	def __init__( self ):
 		Element.__init__(self)
 		self.content = []
+		self.isNode  = True
 
 	def add( self, value ):
 		if isinstance(value, tuple) or isinstance(value, list):
@@ -207,15 +218,11 @@ class Node( Element ):
 			self._add(value)
 		return self
 
+	def balance( self ):
+		for _ in self.content:
+			_.balance()
+
 	def _add( self, value ):
-		if isinstance(value, Block):
-			parent = self.lastWithIndent(value._indent, Node)
-			if not (parent is self or parent is None):
-				assert parent._indent < value._indent
-				parent.add(value)
-				return value
-		if self._indent is not None:
-			value._indent = self._indent + 1 if value._indent is None else value._indent
 		self.content.append(value)
 		value.parent(self)
 		return value
@@ -254,22 +261,22 @@ class Value( Leaf, Output ):
 			target.lvalue(self)
 			return suffix
 		else:
-			raise SyntaxError("Suffix not supported: {0}".format(suffix))
+			raise ImplementationError("Suffix not supported: {0}".format(suffix))
 
 	def eval( self, context=None ):
 		return self.value
 
 	def add( self, value ):
-		raise SyntaxError("{0}.add not implemented".format(self))
+		raise ImplementationError("{0}.add not implemented".format(self))
 
 	def mul( self, value ):
-		raise SyntaxError("{0}.mul not implemented".format(self))
+		raise ImplementationError("{0}.mul not implemented".format(self))
 
 	def div( self, value ):
-		raise SyntaxError("{0}.div not implemented".format(self))
+		raise ImplementationError("{0}.div not implemented".format(self))
 
 	def sub( self, value ):
-		raise SyntaxError("{0}.sub not implemented".format(self))
+		raise ImplementationError("{0}.sub not implemented".format(self))
 
 	def expand( self ):
 		return self
@@ -287,7 +294,7 @@ class Reference( Value ):
 	def expand( self ):
 		value = self.resolve(self.value)
 		if value is None:
-			raise SyntaxError("Variable `{0}` not defined in {1}".format(self.value, self.parent()))
+			raise SemanticError("Variable `{0}` not defined in {1}".format(self.value, self.parent()))
 		return value.expand()
 
 	def eval( self ):
@@ -318,27 +325,30 @@ class Number( Value ):
 
 	def add( self, value ):
 		if isinstance(value, Number):
-			return Number(self.eval() + value.eval(), self.mergeunit(value.unit))
+			return Number(self.value + value.eval().value, self.mergeunit(value.unit))
 		else:
-			raise SyntaxError("{0}.add({1}) not implemented".format(self, value))
+			raise ImplementationError("{0}.add({1}) not implemented".format(self, value))
+
+	def eval( self ):
+		return self
 
 	def sub( self, value ):
 		if isinstance(value, Number):
-			return Number(self.eval() - value.eval(), self.mergeunit(value.unit))
+			return Number(self.value - value.eval().value, self.mergeunit(value.unit))
 		else:
-			raise SyntaxError("{0}.sub({1}) not implemented".format(self, value))
+			raise ImplementationError("{0}.sub({1}) not implemented".format(self, value))
 
 	def mul( self, value ):
 		if isinstance(value, Number):
-			return Number(self.eval() * value.eval(), self.mergeunit(value.unit))
+			return Number(self.value * value.eval().value, self.mergeunit(value.unit))
 		else:
-			raise SyntaxError("{0}.mul({1}) not implemented".format(self, value))
+			raise ImplementationError("{0}.mul({1}) not implemented".format(self, value))
 
 	def div( self, value ):
 		if isinstance(value, Number):
-			return Number(self.eval() / value.eval(), self.mergeunit(value.unit))
+			return Number(self.value / value.eval().value, self.mergeunit(value.unit))
 		else:
-			raise SyntaxError("{0}.div({1}) not implemented".format(self, value))
+			raise ImplementationError("{0}.div({1}) not implemented".format(self, value))
 
 	def mergeunit( self, b):
 		a = self.unit
@@ -408,8 +418,8 @@ class Computation( Value ):
 
 	def eval( self, context=None ):
 		result = None
-		lvalue = self.lvalue().expand()
-		rvalue = self.rvalue().expand()
+		lvalue = self.lvalue().eval()
+		rvalue = self.rvalue().eval()
 		if   self.operator == "*":
 			result = lvalue.mul(rvalue)
 		elif self.operator == "-":
@@ -484,13 +494,16 @@ class Variable( Value, Named ):
 	def expand( self ):
 		return self.value
 
-
 class Property( Leaf, Output ):
 
 	def __init__( self, name, value, important=None):
 		Leaf.__init__(self, value)
 		self.name  = name
 		self.important = important
+
+
+	def __repr__( self ):
+		return "<Property {0}={1} at {2}>".format(self.name, self.value, id(self))
 
 # -----------------------------------------------------------------------------
 #
@@ -525,8 +538,6 @@ class Context( Node ):
 		else:
 			return super(Node, self).resolve(name)
 
-
-
 class Block(Node):
 
 	def __init__( self, selections=None ):
@@ -546,12 +557,17 @@ class Block(Node):
 			self._isDirty = True
 		return self
 
-	# FIXME: Attempts at pruning out duplicates
-	# def add( self, value ):
-	# 	if isinstance(value, Property) and next(self.iter(lambda _:isinstance(_,Property) and _.name == value.name), False):
-	# 		return self
-	# 	else:
-	# 		return super(Block, self).add(value)
+	def balance( self ):
+		blocks     = []
+		non_blocks = []
+		# TODO: There's an opportunity to filter out stuff here
+		for _ in self.content:
+			_.balance()
+			if isinstance(_, Block):
+				blocks.append(_)
+			else:
+				non_blocks.append(_)
+		self.content = non_blocks + blocks
 
 	def parent( self, value=NOTHING ):
 		if value is not NOTHING: self._isDirty = True
