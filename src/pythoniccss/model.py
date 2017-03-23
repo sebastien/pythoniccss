@@ -73,7 +73,7 @@ class Factory(object):
 		return Property(name, value, important)
 
 	def url( self, url ):
-		return URL(text)
+		return URL(url)
 
 	def compute( self, op, lvalue, rvalue ):
 		op = op.strip()
@@ -293,20 +293,11 @@ class Reference( Value ):
 	def eval( self ):
 		return self.expand().eval()
 
-	def write( self, stream ):
-		return self.expand().write(stream)
-
 class URL( Value ):
-
-	def write( self, stream=sys.stdout ):
-		stream.write("url(")
-		stream.write(self.value)
-		stream.write(")")
+	pass
 
 class RawString( Value ):
-
-	def write( self, stream=sys.stdout ):
-		stream.write(self.value)
+	pass
 
 class String( Value ):
 
@@ -314,10 +305,6 @@ class String( Value ):
 		Leaf.__init__(self, value)
 		self.quote = quote
 
-	def write( self, stream=sys.stdout ):
-		if self.quote: stream.write(self.quote)
-		stream.write(self.value)
-		if self.quote: stream.write(self.quote)
 
 class Number( Value ):
 
@@ -363,26 +350,15 @@ class Number( Value ):
 			return a
 		raise Exception("Cannot cast unify units {0} and {1}".format(a, b))
 
-	def write( self, stream=sys.stdout):
-		value = self.eval()
-		if self.unit == "%":
-			value = value * 100
-			if value == int(value):
-				value = int(value)
-		stream.write("{0}{1}".format(value, self.unit or ""))
-
 	def __repr__( self ):
 		return "<Number {0}{1}>".format(self.value, self.unit or "", id(self))
 
 class RGB( Value ):
+	pass
 
-	def write( self, stream=sys.stdout):
-		stream.write("rgb({0},{1},{2})".format(*self.value))
 
 class RGBA( Value ):
-
-	def write( self, stream=sys.stdout):
-		stream.write("rgba({0},{1},{2})".format(*self.value))
+	pass
 
 class List( Leaf, Output ):
 
@@ -395,13 +371,6 @@ class List( Leaf, Output ):
 			return self.value[0]
 		else:
 			return self
-
-	def write( self, stream=sys.stdout):
-		last = len(self.value) - 1
-		for i,_ in enumerate(self.value):
-			_.write(stream)
-			if i < last:
-				stream.write(self.separator or " ")
 
 # -----------------------------------------------------------------------------
 #
@@ -456,9 +425,6 @@ class Computation( Value ):
 	def expand( self ):
 		return self.eval()
 
-	def write( self, stream=sys.stdout):
-		self.eval().write(stream)
-
 	def __repr__( self ):
 		return "<Computation {1} {0} {2} at {3}>".format(self.operator, self.lvalue(), self.rvalue(), id(self))
 
@@ -469,9 +435,7 @@ class Computation( Value ):
 # -----------------------------------------------------------------------------
 
 class Comment( Leaf ):
-
-	def write( self, stream=sys.stdout):
-		pass
+	pass
 
 class Directive( Leaf):
 
@@ -487,9 +451,6 @@ class ModuleDirective( Directive, Named ):
 	def apply( self, context ):
 		context.set("__module__", self.value)
 
-	def write( self, stream=sys.stdout):
-		pass
-
 class ImportDirective( Directive ):
 
 	def __init__( self, value ):
@@ -503,24 +464,12 @@ class Invocation( Directive ):
 		self.arguments = arguments
 		self.target    = None
 
-
-	def write( self, stream=sys.stdout):
-		pass
 class MacroInvocation( Directive ):
 
 	def __init__( self, name, arguments):
 		Directive.__init__(self, arguments)
 		self.name = name
 		self.arguments = arguments
-
-	def write( self, stream=sys.stdout):
-		macro = self.resolve(self.name)
-		if not macro:
-			raise SyntaxError("Macro cannot be resolved: {0}".format(self.name))
-		if not isinstance(macro, Macro):
-			raise SyntaxError("Macro invocation does not resolve to a macro: {0} = {1}".format(self.name, macro))
-		block = macro.apply(self.arguments, self.parent())
-		block.write(stream)
 
 class Variable( Value, Named ):
 
@@ -535,9 +484,6 @@ class Variable( Value, Named ):
 	def expand( self ):
 		return self.value
 
-	def write( self, stream=sys.stdout):
-		pass
-
 
 class Property( Leaf, Output ):
 
@@ -545,17 +491,6 @@ class Property( Leaf, Output ):
 		Leaf.__init__(self, value)
 		self.name  = name
 		self.important = important
-
-	def write( self, stream=sys.stdout):
-		stream.write("\t")
-		stream.write(self.name)
-		stream.write(":")
-		if self.value:
-			assert isinstance(self.value, Node) or isinstance(self.value, Leaf), "Value neither node or leaf: {0} in {1}".format(self.value, self)
-			self.value.write(stream)
-		if self.important:
-			stream.write("important")
-		stream.write(";\n")
 
 # -----------------------------------------------------------------------------
 #
@@ -590,9 +525,7 @@ class Context( Node ):
 		else:
 			return super(Node, self).resolve(name)
 
-	def write( self, stream=sys.stdout):
-		for _ in self.content:
-			_.write(stream)
+
 
 class Block(Node):
 
@@ -608,7 +541,7 @@ class Block(Node):
 	def select( self, selection ):
 		if isinstance(selection, tuple) or isinstance(selection, list):
 			for _ in selection: self.select(_)
-		else:
+		elif selection:
 			self.selections.append(selection)
 			self._isDirty = True
 		return self
@@ -647,23 +580,6 @@ class Block(Node):
 			self._isDirty   = False
 		return self._selectors
 
-	def write( self, stream=sys.stdout):
-		# Here we only output the selectors if we know we have one
-		# direct child with significant output.
-		has_content = next((_ for _ in self.content if isinstance(_, Output)), False)
-		if has_content:
-			sel = self.selectors()
-			l = len(sel) - 1
-			for i,_ in enumerate(sel):
-				_.write(stream)
-				if i < l:
-					stream.write(", ")
-			stream.write("{\n")
-		for _ in self.content:
-			_.write(stream)
-		if has_content:
-			stream.write("}\n")
-
 	def __repr__( self ):
 		return "<Block `{0}` at {1}>".format(", ".join(_.expr() for _ in self.selections), id(self))
 
@@ -680,23 +596,11 @@ class Macro( Node, Named ):
 		# OK like that as we're not multi-threading.
 		return Context(arguments, parent).add(self.content)
 
-	def write( self, stream=sys.stdout):
-		pass
-
-
 class Keyframes( Node, Named ):
 
 	def __init__( self, name ):
 		Node.__init__(self)
 		Named.__init__(self, name)
-
-	def write( self, stream=sys.stdout):
-		stream.write("@keyframes ")
-		stream.write(self.name)
-		stream.write(" {\n")
-		for _ in self.content:
-			_.write(stream)
-		stream.write("}\n")
 
 class Keyframe( Node ):
 
@@ -704,29 +608,10 @@ class Keyframe( Node ):
 		Node.__init__(self)
 		self.selector = selector
 
-	def write( self, stream=sys.stdout):
-		stream.write("\t")
-		if self.selector.value == 100 and self.selector.unit == "%":
-			stream.write("to")
-		elif self.selector.value == 0 and self.selector.unit == "%":
-			stream.write("from")
-		else:
-			self.selector.write(stream)
-		stream.write(" {\n")
-		for _ in self.content:
-			stream.write("\t")
-			_.write(stream)
-		stream.write("\t}\n")
-
-
 class Stylesheet(Node):
 
 	def __init__( self ):
 		Node.__init__(self)
-
-	def write( self, stream=sys.stdout ):
-		for _ in self.content:
-			_.write(stream)
 
 # -----------------------------------------------------------------------------
 #
@@ -837,9 +722,6 @@ class Selector(Leaf):
 
 	def isBEM( self ):
 		return self.isBEMPrefix() or self.isBEMSuffix()
-
-	def write( self, stream=sys.stdout ):
-		stream.write(self.expr())
 
 	def __repr__( self ):
 		return "<Selector `{0}` at {1}>".format(self.expr(), id(self))

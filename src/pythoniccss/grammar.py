@@ -50,13 +50,14 @@ def doDedent(context, match):
 #
 # -----------------------------------------------------------------------------
 
-def grammar(g=None):
+def grammar(g=None, isVerbose=False):
 	"""Definition of the grammar for the PythonicCSS language, using
 	the parsing module parsing elements."""
-	if not g:g=Grammar("PythonicCSS", isVerbose=False)
+	if not g:g=Grammar("PythonicCSS", isVerbose=isVerbose)
 	s = g.symbols
 	g.token   ("SPACE",            "[ ]+")
 	g.token   ("TABS",             "\t*")
+	g.token   ("EMPTY",            "^\s*\n")
 	g.token   ("COMMENT",          "[ \t]*(//|#\s+)[^\n]*")
 	g.token   ("EOL",              "[ ]*\n(\s*\n)*")
 	g.token   ("NUMBER",           "-?(0x)?[0-9]+(\.[0-9]+)?")
@@ -123,7 +124,7 @@ def grammar(g=None):
 	g.rule      ("Selector",         g.agroup(s.SELF, s.NODE).optional()._as("node"), s.NODE_ID.optional()._as("nid"), s.NODE_CLASS.optional()._as("nclass"), s.Attributes.zeroOrMore()._as("attributes"), s.SELECTOR_SUFFIX.zeroOrMore()._as("suffix"))
 	g.rule      ("SelectorNarrower", s.SELECTION_OPERATOR._as("op"), s.Selector._as("sel"))
 
-	g.rule      ("Selection",        s.Selector._as("head"),  s.SelectorNarrower.zeroOrMore()._as("tail"))
+	g.rule      ("Selection",        s.Selector.notEmpty()._as("head"),  s.SelectorNarrower.zeroOrMore()._as("tail"))
 	g.rule      ("Selections",       s.Selection._as("head"), g.arule(s.COMMA, s.Selection).zeroOrMore()._as("tail"))
 
 	# =========================================================================
@@ -166,7 +167,7 @@ def grammar(g=None):
 	g.rule      ("Comment",          s.COMMENT.oneOrMore(), s.EOL)
 	g.rule      ("Include",          s.INCLUDE, s.PATH._as("path"),  s.EOL)
 	# FIXME: Not sure why definition needs to be standalone
-	g.rule      ("VariableDeclaration",       s.Variable._as("declaration"), s.EOL)
+	g.rule      ("VariableDeclaration", s.Variable._as("declaration"), s.EOL)
 	# FIXME: If we remove optional() from SPECIAL_NAME, we get a core dump...
 	g.rule      ("Directive",        s.SPECIAL_NAME.optional()._as("directive"), s.VARIABLE_NAME._as("value"), s.EOL)
 	g.rule      ("CSSDirective",     s.CSS_DIRECTIVE._as("directive"),  s.REST._as("value"), s.EOL)
@@ -179,9 +180,9 @@ def grammar(g=None):
 	# of the failures. A good idea would be to append the indentation value to
 	# the caching key.
 	# .processMemoizationKey(lambda _,c:_ + ":" + c.getVariables().get("requiredIndent", 0))
-	g.rule("Statement",     s.CheckIndent._as("indent"), g.agroup(s.CSSProperty, s.MacroInvocation, s.VariableDeclaration, s.COMMENT)._as("op"), s.EOL)
+	g.rule("Statement",     s.CheckIndent._as("indent"), g.agroup(s.CSSProperty, s.MacroInvocation, s.Variable, s.COMMENT)._as("op"), s.EOL)
 	# FIXME: Not clear why there's a PERCENTAGE here
-	g.rule("Block",         s.CheckIndent._as("indent"), g.agroup(s.PERCENTAGE, s.Selections)._as("selections"), s.COLON.optional(), s.EOL, s.Indent, s.Statement.zeroOrMore()._as("code"), s.Dedent)
+	g.rule("Block",         s.CheckIndent._as("indent"),  s.Selections._as("selections"), s.COLON.optional(), s.EOL, s.Indent, s.Statement.zeroOrMore()._as("code"), s.Dedent)
 
 	g.rule    ("MacroDeclaration", s.MACRO, s.NAME._as("name"), s.Parameters.optional()._as("parameters"), s.COLON.optional())
 	g.rule    ("MacroBlock",       s.CheckIndent._as("indent"), s.MacroDeclaration._as("type"), s.EOL, s.Indent, s.Statement.zeroOrMore()._as("code"), s.Dedent)
@@ -198,17 +199,15 @@ def grammar(g=None):
 	# AXIOM
 	# =========================================================================
 
-	g.group     ("Source",  g.agroup(s.Comment, s.Block, s.MacroBlock, s.KeyframesBlock, s.CSSDirective, s.Directive, s.SpecialBlock, s.VariableDeclaration, s.Include).zeroOrMore())
+	g.group     ("Source",  g.agroup(s.Comment, s.Block, s.MacroBlock, s.KeyframesBlock, s.CSSDirective, s.Directive, s.SpecialBlock, s.VariableDeclaration, s.Include, s.EMPTY).zeroOrMore())
 	g.skip  = s.SPACE
 	g.axiom = s.Source
 	g.prepare()
 	return g
 
-def getGrammar():
+def getGrammar(isVerbose=False):
 	global G
-	if not G: G = grammar()
+	if not G: G = grammar(isVerbose=isVerbose)
 	return G
-
-
 
 # EOF

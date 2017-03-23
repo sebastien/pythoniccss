@@ -14,12 +14,6 @@ class PCSSProcessor(Processor):
 		self.F      = Factory()
 		self.output = output
 
-	def _process( self, match, path=False ):
-		if path is not False: self.path = path
-		res = self.process(match)
-		# FIXME: This should be moved to the command
-		return res.write(self.output)
-
 	# =========================================================================
 	# HIGH-LEVEL STRUCTURE
 	# =========================================================================
@@ -33,7 +27,7 @@ class PCSSProcessor(Processor):
 
 	def onBlock( self, match ):
 		indent     = self.process(match["indent"])
-		selections = self.process(match["selections"])[0]
+		selections = self.process(match["selections"])
 		code       = self.process(match["code"])
 		return self.F.block().select(selections).add(code).indent(indent)
 
