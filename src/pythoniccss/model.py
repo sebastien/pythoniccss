@@ -10,7 +10,7 @@
 # -----------------------------------------------------------------------------
 
 from __future__ import print_function
-import sys
+import sys, colorsys
 
 __doc__ = """
 Defines an abstract model for CSS stylesheets.
@@ -63,8 +63,11 @@ class Factory(object):
 	def invokemacro( self, name, arguments=None ):
 		return MacroInvocation(name, arguments)
 
-	def invoke( self, name, arguments=None ):
-		return Invocation(name, arguments)
+	def invokemethod( self, name, arguments=None ):
+		return MethodInvocation(name, arguments)
+
+	def invokefunction( self, name, arguments=None ):
+		return FunctionInvocation(name, arguments)
 
 	def list( self, value, separator=None ):
 		return List(value, separator)
@@ -111,13 +114,11 @@ class Factory(object):
 	def reference( self, name ):
 		return Reference(name)
 
-	def directive( self, name, value):
-		if name == "@module":
-			return ModuleDirective(value)
-		elif name == "@import":
-			return ImportDirective(value)
-		else:
-			raise Exception("Directive not implemented: {0}".format(name))
+	def module( self, name):
+		return ModuleDirective(name)
+
+	def unit( self, name, value ):
+		return Unit(name, value)
 
 # -----------------------------------------------------------------------------
 #
@@ -134,6 +135,9 @@ class Named:
 class Output:
 	"""A trait that denotes objects that produce significant output (ie. not comments)"""
 
+	def __init__( self ):
+		pass
+
 class Element( object ):
 
 	def __init__( self ):
@@ -149,6 +153,14 @@ class Element( object ):
 		if self._parent:
 			return self._parent.resolve(name)
 
+	def resolveUnit( self, name ):
+		root = self
+		while root._parent:
+			root =  root._parent
+		return root.resolve(name)
+
+	def invoke( self, name, arguments ):
+		raise SemanticError("{0} does not respond to method {1}".format(self, name))
 	def parent( self, value=NOTHING ):
 		if value is NOTHING:
 			return self._parent
@@ -312,68 +324,157 @@ class String( Value ):
 		Leaf.__init__(self, value)
 		self.quote = quote
 
-
 class Number( Value ):
 
 	def __init__( self, value, unit=None ):
 		Leaf.__init__(self, value)
 		self.unit  = unit
+		self._isDirty = True
+		self._evaluated = None
 
 	def write( self, stream=sys.stdout):
 		stream.write(str(self.value))
 		if self.unit: stream.write(self.unit)
 
+	def eval( self ):
+		if self._isDirty:
+			self._isDirty = False
+			custom = self.resolveUnit(self.unit)
+			if custom:
+				value = custom.value.eval()
+				self._evaluated = Number(
+					value.value * self.value,
+					value.unit
+				)
+			else:
+				self._evaluated = self
+		return self._evaluated
+
+	def unify( self, value ):
+		a = self.unit
+		b = value.unit
+		a = self.resolveUnit(a) or a
+		b = self.resolveUnit(b) or b
+		if not a or not b or a == b:
+			return a or b
+		else:
+			raise SemanticError("Cannot unify {0} with {1}".format(self.unit, unit))
+
+	def convert( self, unit ):
+		custom = self.resolveUnit(unit)
+		if custom:
+			if custom.unit in (self.unit, None):
+				return self.mul(custom.value).value
+			else:
+				raise SemanticError("Cannot convert {0} to {1}".format(self, unit))
+		else:
+			if not unit or not self.unit or unit == self.unit:
+				return self.value
+			else:
+				raise SemanticError("Cannot convert {0} to {1}".format(self, unit))
+
 	def add( self, value ):
 		if isinstance(value, Number):
-			return Number(self.value + value.eval().value, self.mergeunit(value.unit))
+			return Number(self.value + value.eval().convert(self.unit), self.unify(value))
 		else:
 			raise ImplementationError("{0}.add({1}) not implemented".format(self, value))
 
-	def eval( self ):
-		return self
-
 	def sub( self, value ):
 		if isinstance(value, Number):
-			return Number(self.value - value.eval().value, self.mergeunit(value.unit))
+			return Number(self.value - value.eval().convert(self.unit), self.unify(value))
 		else:
 			raise ImplementationError("{0}.sub({1}) not implemented".format(self, value))
 
 	def mul( self, value ):
 		if isinstance(value, Number):
-			return Number(self.value * value.eval().value, self.mergeunit(value.unit))
+			return Number(float(self.value) * value.eval().convert(self.unit), self.unify(value))
 		else:
 			raise ImplementationError("{0}.mul({1}) not implemented".format(self, value))
 
 	def div( self, value ):
 		if isinstance(value, Number):
-			return Number(self.value / value.eval().value, self.mergeunit(value.unit))
+			return Number(float(self.value) / value.eval().convert(self.unit), self.unify(value))
 		else:
 			raise ImplementationError("{0}.div({1}) not implemented".format(self, value))
 
-	def mergeunit( self, b):
-		a = self.unit
-		if a and not b:
-			return a
-		if b and not a:
-			return b
-		if a == b:
-			return a
-		raise Exception("Cannot cast unify units {0} and {1}".format(a, b))
+
 
 	def __repr__( self ):
 		return "<Number {0}{1}>".format(self.value, self.unit or "", id(self))
 
-class RGB( Value ):
+class Color( Value ):
+
+	def invoke( self, name, arguments ):
+		if name == "brighten":
+			return self.brighten(*arguments)
+		elif name == "darken":
+			return self.darken(*arguments)
+		elif name == "fade":
+			return self.fade(*arguments)
+		else:
+			return super(Color, self).invoke(name, arguments)
+
+	def brighten( self, k ):
+		h,l,s = colorsys.rgb_to_hls(self.value[0], self.value[1], self.value[2])
+		r,g,b = colorsys.hls_to_rgb(h, l + k, s)
+		if len(self.value) == 3:
+			self.value = [r,g,b]
+		else:
+			self.value = [r,g,b, self.value[3]]
+		return self
+
+	def darken( self, k ):
+		return self.brighten(0 - k)
+
+	def fade( self, color, k):
+		k = k.eval().value
+		ca = self.rgba()
+		cb = color.rgba()
+		r = ca[0] + (cb[0] - ca[0]) * k
+		g = ca[1] + (cb[1] - ca[1]) * k
+		b = ca[2] + (cb[2] - ca[2]) * k
+		a = ca[3] + (cb[3] - ca[3]) * k
+		if a >= 1.0:
+			return RGB((r,g,b)).normalize()
+		else:
+			return RGBA((r,g,b,a)).normalize()
+
+	def normalize( self ):
+		r = max(0, min(self.value[0], 255))
+		g = max(0, min(self.value[1], 255))
+		b = max(0, min(self.value[2], 255))
+		if len(self.value) > 3:
+			a = max(0, min(1.0, self.value[3]))
+			self.value = [r,g,b,a]
+		else:
+			self.value = [r,g,b]
+		return self
+
+	def rgb( self ):
+		return (self.value[0], self.value[1], self.value[2])
+
+	def rgba( self ):
+		return (self.value[0], self.value[1], self.value[2], self.value[3] if len(self.value) > 3 else 1.0)
+
+	def mul( self, value ):
+		return self.__class__(self.normalize() * value.value)
+
+	def div( self, value ):
+		return self.__class__(self.normalize() / value.value)
+
+
+class RGB( Color ):
 	pass
 
 
-class RGBA( Value ):
+class RGBA( Color ):
 	pass
 
 class List( Leaf, Output ):
 
 	def __init__( self, value, separator=None ):
 		Leaf.__init__(self, value)
+		Output.__init__(self)
 		self.separator = separator
 
 	def unwrap( self ):
@@ -466,20 +567,41 @@ class ImportDirective( Directive ):
 	def __init__( self, value ):
 		Directive.__init__(self, value)
 
+class Unit( Directive, Named) :
+
+	def __init__( self, name, value ):
+		Directive.__init__(self, value)
+		Named.__init__(self, name)
+
+	def eval( self ):
+		return self.value.eval()
+
 class Invocation( Directive ):
 
 	def __init__( self, name, arguments):
 		Directive.__init__(self, arguments)
 		self.name     = name
 		self.arguments = arguments
-		self.target    = None
 
-class MacroInvocation( Directive ):
+class FunctionInvocation( Invocation ):
 
 	def __init__( self, name, arguments):
-		Directive.__init__(self, arguments)
-		self.name = name
-		self.arguments = arguments
+		Invocation.__init__(self, name, arguments)
+
+class MethodInvocation( Invocation):
+
+	def __init__( self, name, arguments, target=None):
+		Invocation.__init__(self, name, arguments)
+		self.target    = None
+
+	def eval( self ):
+		return self.target.invoke(self.name, self.arguments)
+
+class MacroInvocation( Invocation, Output ):
+
+	def __init__( self, name, arguments):
+		Invocation.__init__(self, name, arguments)
+		Output.__init__(self)
 
 class Variable( Value, Named ):
 
@@ -498,6 +620,7 @@ class Property( Leaf, Output ):
 
 	def __init__( self, name, value, important=None):
 		Leaf.__init__(self, value)
+		Output.__init__(self)
 		self.name  = name
 		self.important = important
 
@@ -553,6 +676,7 @@ class Block(Node):
 		if isinstance(selection, tuple) or isinstance(selection, list):
 			for _ in selection: self.select(_)
 		elif selection:
+			selection.parent(self)
 			self.selections.append(selection)
 			self._isDirty = True
 		return self
@@ -610,7 +734,8 @@ class Macro( Node, Named ):
 		# NOTE: This has the side-effect of the new block "borrowing" the
 		# content. In theory, we should deep-copy the content, but it's
 		# OK like that as we're not multi-threading.
-		return Context(arguments, parent).add(self.content)
+		args = dict((k,arguments[i]) for i,k in enumerate(self.parameters) if i < len(arguments)) if arguments else {}
+		return Context(args, parent).add(self.content)
 
 class Keyframes( Node, Named ):
 
@@ -628,6 +753,7 @@ class Stylesheet(Node):
 
 	def __init__( self ):
 		Node.__init__(self)
+		self.units = {}
 
 # -----------------------------------------------------------------------------
 #
@@ -670,17 +796,22 @@ class Selector(Leaf):
 
 	def narrow( self, selector, operator=None):
 		"""Returns a copy of this selector prefixed with the given selector."""
-		last = self.last()
-		if self.isBEMPrefix() and selector.isBEMSuffix():
-			last.mergeBEM(selector)
-			last.next = selector.next
-		elif selector.node == "&":
-			assert self.node == "&" or selector.node == "&"
-			last.merge(selector)
-			last.next = selector.next
+		if operator == "<<":
+			return selector.narrow(self)
+		elif operator == "<":
+			return selector.narrow(self, ">")
 		else:
-			last.next = (operator, selector)
-		return self
+			last = self.last()
+			if self.isBEMPrefix() and selector.isBEMSuffix():
+				last.mergeBEM(selector)
+				last.next = selector.next
+			elif selector.node == "&":
+				assert self.node == "&" or selector.node == "&"
+				last.merge(selector)
+				last.next = selector.next
+			else:
+				last.next = (operator, selector)
+			return self
 
 	def prefix( self, selector ):
 		"""Returns a copy of this selector prefixed with the given selector."""
@@ -695,7 +826,6 @@ class Selector(Leaf):
 		self.attributes += selector.attributes
 		self.suffix     += selector.suffix
 		return self
-
 
 	def mergeBEM( self, selector ):
 		pa=[] ; ca=[]
@@ -728,6 +858,8 @@ class Selector(Leaf):
 				res += op
 				res += " "
 			res += sel.expr(namespace=False)
+		if res.endswith("&"):
+			res = res[:-1].strip() or ".__module__"
 		return res
 
 	def isBEMPrefix( self ):

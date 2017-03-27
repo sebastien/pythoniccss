@@ -5,7 +5,7 @@
 # License           : BSD License
 # -----------------------------------------------------------------------------
 # Creation date     : 14-Jul-2013
-# Last modification : 17-Nov-2016
+# Last modification : 27-Mar-2017
 # -----------------------------------------------------------------------------
 
 from __future__ import print_function
@@ -65,7 +65,7 @@ def grammar(g=None, isVerbose=False):
 	g.token   ("ATTRIBUTE_VALUE",  "\"[^\"]*\"|'[^']*'|[^,\]]+")
 	g.token   ("ATTRIBUTE_OPERATOR",  "[\^]?=")
 	g.token   ("SELECTOR_SUFFIX",  "::?[\-a-z][a-z0-9\-]*(\([^\)]+\))?")
-	g.token   ("SELECTION_OPERATOR", "\>|\+|\~|[ ]+")
+	g.token   ("SELECTION_OPERATOR", "\>|\+|\~|[ ]+|\<\<|\<")
 	g.word    ("EQUAL",             "=")
 	g.word    ("COLON",            ":")
 	g.word    ("DOT",              ".")
@@ -85,7 +85,6 @@ def grammar(g=None, isVerbose=False):
 	g.word    ("RSBRACKET",        "]")
 
 	g.token   ("PATH",             "\"[^\"]+\"|'[^']'|[^\s\n]+")
-	g.token   ("PERCENTAGE",       "\d+(\.\d+)?%")
 	g.token   ("STRING_SQ",        "'((\\\\'|[^'\\n])*)'")
 	g.token   ("STRING_BQ",        "`((\\\\`|[^`\\n])*)`")
 	g.token   ("STRING_DQ",        "\"((\\\\\"|[^\"\n])*)\"")
@@ -98,10 +97,10 @@ def grammar(g=None, isVerbose=False):
 
 	g.token   ("UNIT",             "[a-zA-z]+|\%")
 	g.token   ("VARIABLE_NAME",    "[\w_][\w\d_]*")
+	g.token   ("FQ_NAME",          "[\w_][\w\d_]*(\.[\w_][\w\d_]*)*")
 	g.token   ("METHOD_NAME",      "[\w_][\w\d_]*")
 	g.token   ("NAME",             "[\w_][\w\d_]*")
 	g.token   ("REFERENCE",        "\$([\w_][\w\d_]*)")
-	#g.token   ("COLOR_NAME",       "[a-z][a-z0-9\-]*")
 	g.token   ("COLOR_HEX",        "\#([A-Fa-f0-9][A-Fa-f0-9]?[A-Fa-f0-9]?[A-Fa-f0-9]?[A-Fa-f0-9]?[A-Fa-f0-9]?([A-Fa-f0-9][A-Fa-f0-9])?)")
 	g.token   ("COLOR_RGB",        "rgba?\((\s*\d+\s*,\s*\d+\s*,\s*\d+\s*(,\s*\d+(\.\d+)?\s*)?)\)")
 	g.token   ("URL",              "url\((\"[^\"]*\"|\'[^\']*\'|[^\)]*)\)")
@@ -132,22 +131,23 @@ def grammar(g=None, isVerbose=False):
 	g.rule      ("Number",           s.NUMBER._as("value"), s.UNIT.optional()._as("unit"))
 	# TODO: Add RawString
 	g.group     ("String",           s.STRING_BQ, s.STRING_SQ, s.STRING_DQ, s.STRING_UQ)
-	g.group     ("Value",            s.Number, s.COLOR_HEX, s.COLOR_RGB, s.URL, s.REFERENCE, s.String)
-	g.rule      ("Parameters",       s.VARIABLE_NAME, g.arule(s.COMMA, s.VARIABLE_NAME).zeroOrMore())
-	g.rule      ("Arguments",        s.Value, g.arule(s.COMMA, s.Value).zeroOrMore())
+	g.group     ("Value")
+	g.rule      ("Parameters",       s.VARIABLE_NAME._as("head"), g.arule(s.COMMA, s.VARIABLE_NAME).zeroOrMore()._as("tail"))
+	g.rule      ("Arguments",        s.Value._as("head"), g.arule(s.COMMA, s.Value).zeroOrMore()._as("tail"))
 	g.rule      ("Expression")
-	g.rule      ("ExpressionList", s.Expression._as("head"), g.arule(s.COMMA, s.Expression).zeroOrMore()._as("tail"))
+	g.rule      ("ExpressionList",   s.Expression._as("head"), g.arule(s.COMMA, s.Expression).zeroOrMore()._as("tail"))
+	g.rule      ("CSSInvocation",    s.NAME._as("name"), s.LP, s.ExpressionList.oneOrMore()._as("values"), s.RP)
 
 	# NOTE: We use Prefix and Suffix to avoid recursion, which creates a lot
 	# of problems with parsing expression grammars
 	g.rule      ("Parens", s.LP, s.Expression._as("value"), s.RP)
 	g.group     ("Prefix", s.Value, s.Parens)
 	s.Expression.set(s.Prefix._as("prefix"), s.Suffix.zeroOrMore()._as("suffixes"))
+	s.Value.set(s.Number, s.COLOR_HEX, s.COLOR_RGB, s.URL, s.REFERENCE, s.CSSInvocation, s.String)
 
-	g.rule      ("Invocation",   g.arule(s.DOT,     s.METHOD_NAME).optional()._as("method"), s.LP, s.Arguments.optional()._as("arguments"), s.RP)
+	g.rule      ("MethodInvocation",  g.arule(s.DOT,     s.METHOD_NAME)._as("method"), s.LP, s.Arguments.optional()._as("arguments"), s.RP)
 	g.rule      ("InfixOperation", s.INFIX_OPERATOR._as("op"), s.Expression._as("rvalue"))
-	# TODO: Might be better to use COMMA as a suffix to chain expressions
-	s.Suffix.set(s.InfixOperation, s.Invocation)
+	s.Suffix.set(s.InfixOperation, s.MethodInvocation)
 
 	# =========================================================================
 	# OPERATIONS
@@ -184,7 +184,6 @@ def grammar(g=None, isVerbose=False):
 	# the caching key.
 	# .processMemoizationKey(lambda _,c:_ + ":" + c.getVariables().get("requiredIndent", 0))
 	g.rule("Statement",     s.CheckIndent._as("indent"), g.agroup(s.CSSProperty, s.MacroInvocation, s.Variable, s.COMMENT)._as("op"), s.EOL)
-	# FIXME: Not clear why there's a PERCENTAGE here
 	g.rule("Block",         s.CheckIndent._as("indent"),  s.Selections._as("selections"), s.COLON.optional(), s.EOL, s.Indent, s.Statement.zeroOrMore()._as("code"), s.Dedent)
 
 	g.rule    ("MacroDeclaration", s.OMACRO, s.NAME._as("name"), s.Parameters.optional()._as("parameters"), s.COLON.optional())

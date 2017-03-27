@@ -2,12 +2,52 @@
 from __future__ import print_function
 from libparsing import Processor, ensure_str, is_string
 from .grammar import grammar, getGrammar
-from .model   import Factory, Element, Node
-import re, sys
+from .model   import Factory, Element, Node, String
+import re, os, sys
+
+BASE = os.path.dirname(os.path.abspath(__file__))
+
+COLOR_PROPERTIES     = (
+	"background",
+	"background-color",
+	"color",
+	"gradient"
+	"linear-gradient"
+)
+
+
 
 class PCSSProcessor(Processor):
 	"""Creates the model for the CSS stylesheet based on the result returned
 	by the grammar. This is essentially an AST-like generator for the grammar."""
+
+	RGB = None
+
+	@classmethod
+	def ColorFromName( cls, name ):
+		"""Retrieves the (R,G,B) color triple for the color of the given name."""
+		if not cls.RGB:
+			colors = {}
+			# We extract the color names from X11's rgb file
+			# SEE: https://en.wikipedia.org/wiki/X11_color_names#Color_name_chart
+			with open(os.path.join(BASE, "rgb.txt")) as f:
+				# FIXME: Somehow, this creates a sefault
+				# for line in f.readlines():
+				# 	print (line)
+				for line in f.read().split("\n"):
+					if not line or line[0] == "!": continue
+					r = line[0:4]
+					g = line[4:8]
+					b = line[8:12]
+					r, g, b = (int(_.strip()) for _ in (r,g,b))
+					n = line[12:].lower().strip()
+					colors[n] = (r, g, b)
+			cls.RGB = colors
+		name = name.lower().strip()
+		if name not in cls.RGB:
+			None
+		else:
+			return cls.RGB[name.lower().strip()]
 
 	def __init__( self, grammar=None, output=sys.stdout ):
 		Processor.__init__(self, grammar or getGrammar())
@@ -51,6 +91,9 @@ class PCSSProcessor(Processor):
 		# The ordering of statements is deferred to the `onSource` rule
 		return [self.F.block().select(selections).indent(indent)] + code
 
+	def onModule( self, match, name ):
+		return self.F.module(name)
+
 	def onStatement( self, match ):
 		indent  = self.process(match["indent"])
 		op      = self.process(match["op"])[0]
@@ -58,6 +101,9 @@ class PCSSProcessor(Processor):
 
 	def onDirective( self, match ):
 		return self.process(match[0])
+
+	def onUnit(self, match, name, value ):
+		return self.F.unit(name, value)
 
 	def onMacroDeclaration( self, match, name, parameters ):
 		return self.F.macro(name, parameters)
@@ -92,6 +138,10 @@ class PCSSProcessor(Processor):
 		name      = self.process(match["name"])
 		values    = self.F.list(self.process(match["values"])).unwrap()
 		important = self.process(match["important"])
+		if name in COLOR_PROPERTIES and values:
+			if isinstance(values, String):
+				rgb = self.ColorFromName(values.value)
+				if rgb: values = self.F.rgb(rgb)
 		return self.F.property(name, values, important)
 
 	def onAssignment( self, match ):
@@ -120,15 +170,24 @@ class PCSSProcessor(Processor):
 	def onParens( self, match, value ):
 		return self.F.parens(value)
 
+	def onParameters( self, match, head, tail ):
+		return [head] + [_[1] for _ in tail]
+
+	def onArguments( self, match, head, tail ):
+		return [head] + [_[1] for _ in tail]
+
 	def onExpression( self, match, prefix, suffixes ):
 		prefix = prefix[1] if not isinstance(prefix, Element) else prefix
 		for suffix in suffixes:
 			prefix = prefix.suffix(suffix)
 		return prefix
 
-	def onInvocation( self, match, method, arguments):
+	def onCSSInvocation( self, match, name, values ):
+		return self.F.invokefunction(name, values)
+
+	def onMethodInvocation( self, match, method, arguments):
 		method = method[1] if method else None
-		return self.F.invoke(method, arguments)
+		return self.F.invokemethod(method, arguments)
 
 	def onInfixOperation( self, match, op, rvalue):
 		return self.F.compute(op, None, rvalue)
@@ -169,7 +228,7 @@ class PCSSProcessor(Processor):
 		if len(c) == 3:
 			return self.F.rgb([int(_) for _ in c])
 		else:
-			return self.F.rgba(((int(_) for _ in c[:3] + [float(c[3])])))
+			return self.F.rgba([int(_) for _ in c[:3]] + [float(c[3])])
 
 	def onREFERENCE(self, match):
 		return self.F.reference(self.process(match)[1])
@@ -203,7 +262,8 @@ class PCSSProcessor(Processor):
 	def onSelections( self, match ):
 		head = self.process(match["head"])
 		tail = self.process(match["tail"])
-		return [head] + ([_[1] for _ in tail or []])
+		head = [head] + ([_[1] for _ in tail or []])
+		return head
 
 	def onSelection( self, match ):
 		head = self.process(match["head"])
