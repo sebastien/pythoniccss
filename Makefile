@@ -1,8 +1,8 @@
 SOURCES     = $(wildcard src/*.py)
 DOC_SOURCES = $(wildcard src/*.py)
 MANIFEST    = $(SOURCES) $(wildcard *.py api/*.* AUTHORS* README* LICENSE*)
-VERSION     = `grep VERSION src/pythoniccss.py | cut -d '=' -f2  | xargs echo`
-DOC_PROCUT  = README.html API.html
+VERSION     = `grep VERSION src/pythoniccss/__init__.py | cut -d '=' -f2  | xargs echo`
+DOC_PRODUCT = README.html API.html
 PRODUCT     = MANIFEST
 
 .PHONY: all doc clean check

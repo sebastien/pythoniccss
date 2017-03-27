@@ -11,7 +11,7 @@
 
 from .command   import run, parse, parseString, convert
 
-VERSION    = "0.6.5"
+VERSION    = "0.7.0"
 LICENSE    = "http://ffctn.com/doc/licenses/bsd"
 
 __doc__ = """
