@@ -1,0 +1,200 @@
+=== PCSS
+--- Reference
+
+
+This is a reference for the PCSS language. PCSS is a Pythonic superset of 
+CSS.
+
+Blocks
+======
+
+Blocks in PCSS start with a comma-separated list of selectors followed by
+an optional colon. Each block defines one or more sub-blocks or CSS property
+declarations, which need to be *tab-indented*.
+
+```pcss
+div:
+	padding: 10px
+```
+
+
+
+Comments
+========
+
+Comments start with `//` and continue up to the end of line.
+
+Selectors
+=========
+
+Selectors are regular CSS selectors, with a few new additions:
+
+Self-reference
+--------------
+
+The `&` character is used to refer to the parent selector. Use it to specialize
+the current selector(s):
+
+```pcss
+div:
+	&.focused:
+		background: yellow
+```
+
+Parent/ancestor selector
+------------------------
+
+The `<` combinator can be used so that `A < B` equals `B > A`. Likewise, the
+`<<` combinator can be used so that `A << B` equals `B A`.
+
+```pcss
+.tooltip:
+	&:
+		background: white
+	& < .Component:
+		background: black
+```
+
+BEM
+---
+
+Whenever a selector's class ends with a `-` it is considered the current 
+*prefix*, and when it starts with a `-` it is considered to be the current
+*suffix*.
+
+```pcss
+.Tooltip-
+	.-header
+		‥
+	.-body
+		‥
+```
+
+Values
+======
+
+Numbers
+-------
+
+Number can be int `10`, float `0.12` and percentages `100%`. They can be suffixed
+by a unit `10px`, `1.25em`, etc.
+
+Computations
+------------
+
+Values (mostly numbers) can be combined together using regular mathematical
+operators `*`, `/` , `+`, `-` and `%`. Operators precendence can be enforced
+using parens `(‥)`.
+
+Colors
+------
+
+Colors can be expressed in *hex* as RGB `#FF0000` or RGBA `FF0000FF`, as an
+`rgb(255,0,0)` or `rgba(255,0,0,1.0)` calls, or as a color name (`green`).
+
+A color value offers the following methods:
+
+- `<color>.brighten(k)` adds `k` to the *luminance* of the color
+- `<color>.darken(k)` removes `k` to the *luminance* of the color
+- `<color>.blend(color, k)` blends both colors together using k ∈ [0,1]
+
+Strings
+-------
+
+Strings can be single-quoted, double-quoted or escaped using backquotes.
+Escaped strings will appear without quotes:
+
+```pcss
+.A:after:
+	content: "A"
+.B:after:
+	content: 'A'
+.w50:
+	width: calc(`100% / 2`)
+```
+
+Lists
+-----
+
+Lists of values can be either space seperated or comma-separated
+
+```pcss
+padding: 10px 10px 10px
+transition-properties: background, color
+```
+
+Variables
+=========
+
+Variables can be declared anywhere provided they are properly indented
+and will be accessible from the block they're declared in and all its 
+descendants until overriden.
+
+Variables are declared with a `=` and referenced with a `$`.
+
+```
+VARIABLE = 10px
+OTHER_VARIABLE = $VARIABLE / 2
+```
+
+
+Directives
+==========
+
+Module
+------
+
+The `@module <NAME>` directive will prefix all the following selectors with
+`.use-<NAME>`.
+
+Units
+-----
+
+The `@unit <NAME>=<VALUE>` directive defines a new unit that will then
+be usable for any number.
+
+```pcss
+@unit pad = 10px
+div:
+	padding: 1pad
+```
+
+Macros
+------
+
+The `@macro NAME A, B, C‥` directive defines a macro that can be later invoked
+
+```pcss
+@macro padding top, right, bottom, left
+	padding: $top $right $bottom $left
+div:
+	padding(10px,20px,10px,20px)
+```
+
+Include
+-------
+
+The `@include PATH` directive will include the given PCSS file as-is within
+the current file. `PATH` must resolve to the local file-system.
+
+Import
+------
+
+The `@import <PATH|NAME|URL>` tells the browser to import the stylesheet
+at the given path/URL.
+
+Keyframes
+---------
+
+The `@keyframes <NAME>` directive defines a *keyframes* block that can
+be used to describe a CSS animation.
+
+```pcss
+@keyframe fade-out
+	from
+		opacity: 1.0
+	to:
+		opacity: 0.0
+		
+
+```

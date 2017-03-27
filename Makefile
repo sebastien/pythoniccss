@@ -2,7 +2,7 @@ SOURCES     = $(wildcard src/*.py)
 DOC_SOURCES = $(wildcard src/*.py)
 MANIFEST    = $(SOURCES) $(wildcard *.py api/*.* AUTHORS* README* LICENSE*)
 VERSION     = `grep VERSION src/pythoniccss/__init__.py | cut -d '=' -f2  | xargs echo`
-DOC_PRODUCT = README.html API.html
+DOC_PRODUCT = README.html API.html REFERENCE.html
 PRODUCT     = MANIFEST
 
 .PHONY: all doc clean check
@@ -31,8 +31,6 @@ doc: README.html
 
 README.html:  tests/test-complete.pcss bin/makedoc
 	python bin/makedoc
-
-	
 
 test:
 	python tests/all.py

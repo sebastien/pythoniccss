@@ -6,7 +6,7 @@
 # License           : BSD License
 # -----------------------------------------------------------------------------
 # Creation date     : 14-Jul-2013
-# Last modification : 18-Nov-2016
+# Last modification : 27-Mar-2017
 # -----------------------------------------------------------------------------
 
 from __future__ import print_function
@@ -409,8 +409,8 @@ class Color( Value ):
 			return self.brighten(*arguments)
 		elif name == "darken":
 			return self.darken(*arguments)
-		elif name == "fade":
-			return self.fade(*arguments)
+		elif name == "blend":
+			return self.blend(*arguments)
 		else:
 			return super(Color, self).invoke(name, arguments)
 
@@ -426,7 +426,7 @@ class Color( Value ):
 	def darken( self, k ):
 		return self.brighten(0 - k)
 
-	def fade( self, color, k):
+	def blend( self, color, k):
 		k = k.eval().value
 		ca = self.rgba()
 		cb = color.rgba()
