@@ -374,30 +374,32 @@ class Number( Value ):
 				raise SemanticError("Cannot convert {0} to {1}".format(self, unit))
 
 	def add( self, value ):
+		value = value.eval()
 		if isinstance(value, Number):
-			return Number(self.value + value.eval().convert(self.unit), self.unify(value))
+			return Number(self.value + value.convert(self.unit), self.unify(value))
 		else:
 			raise ImplementationError("{0}.add({1}) not implemented".format(self, value))
 
 	def sub( self, value ):
+		value = value.eval()
 		if isinstance(value, Number):
-			return Number(self.value - value.eval().convert(self.unit), self.unify(value))
+			return Number(self.value - value.convert(self.unit), self.unify(value))
 		else:
 			raise ImplementationError("{0}.sub({1}) not implemented".format(self, value))
 
 	def mul( self, value ):
+		value = value.eval()
 		if isinstance(value, Number):
-			return Number(float(self.value) * value.eval().convert(self.unit), self.unify(value))
+			return Number(float(self.value) * value.convert(self.unit), self.unify(value))
 		else:
 			raise ImplementationError("{0}.mul({1}) not implemented".format(self, value))
 
 	def div( self, value ):
+		value = value.eval()
 		if isinstance(value, Number):
-			return Number(float(self.value) / value.eval().convert(self.unit), self.unify(value))
+			return Number(float(self.value) / value.convert(self.unit), self.unify(value))
 		else:
 			raise ImplementationError("{0}.div({1}) not implemented".format(self, value))
-
-
 
 	def __repr__( self ):
 		return "<Number {0}{1}>".format(self.value, self.unit or "", id(self))
