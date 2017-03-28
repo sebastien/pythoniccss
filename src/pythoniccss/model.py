@@ -120,6 +120,9 @@ class Factory(object):
 	def unit( self, name, value ):
 		return Unit(name, value)
 
+	def _import( self, source):
+		return ImportDirective(source)
+
 # -----------------------------------------------------------------------------
 #
 # AST

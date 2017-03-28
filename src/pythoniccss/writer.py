@@ -86,6 +86,8 @@ class CSSWriter( object ):
 			pass
 		elif isinstance(element, ModuleDirective):
 			pass
+		elif isinstance(element, ImportDirective):
+			yield self.onImportDirective(element)
 		elif isinstance(element, Macro):
 			pass
 		elif isinstance(element, Unit):
@@ -126,6 +128,10 @@ class CSSWriter( object ):
 			yield self.onVariable(element)
 		elif isinstance(element, Computation):
 			yield self.onComputation(element)
+		elif isinstance(element, Keyframes):
+			yield self.onKeyframes(element)
+		elif isinstance(element, Keyframe):
+			yield self.onKeyframe(element)
 		else:
 			raise Exception("Writer.write: {0} not supported".format(element))
 
@@ -243,20 +249,7 @@ class CSSWriter( object ):
 			while value[-1] in "0.": value = value[:-1]
 			yield "{0}{1}".format(value, element.unit or "")
 
-	def onKeyframe( self, element ):
-		assert None
-		yield ("\t")
-		if self.selector.value == 100 and self.selector.unit == "%":
-			yield ("to")
-		elif self.selector.value == 0 and self.selector.unit == "%":
-			yield ("from")
-		else:
-			self.selector.write(stream)
-		yield (" {\n")
-		for _ in self.content:
-			yield ("\t")
-			_.write(stream)
-		yield ("\t}\n")
+
 
 	def onRawString( self, element ):
 		yield (element.value)
@@ -270,12 +263,30 @@ class CSSWriter( object ):
 		yield element.value
 
 	def onKeyframes( self, element ):
-		assert None
 		yield ("@keyframes ")
-		yield (self.name)
+		yield (element.name)
 		yield (" {\n")
-		for _ in self.content:
-			_.write(stream)
+		for _ in element.content:
+			yield self.on(_)
 		yield ("}\n")
+
+	def onKeyframe( self, element ):
+		yield ("\t")
+		if element.selector.value == 100 and element.selector.unit == "%":
+			yield ("to")
+		elif element.selector.value == 0 and element.selector.unit == "%":
+			yield ("from")
+		else:
+			yield self.on(element.selector)
+		yield (" {\n")
+		for _ in element.content:
+			yield ("\t")
+			yield self.on(_)
+		yield ("\t}\n")
+
+	def onImportDirective( self, element ):
+		yield "@import "
+		yield self.on(element.value)
+		yield "\n"
 
 # EOF

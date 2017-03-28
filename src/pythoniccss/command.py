@@ -32,7 +32,7 @@ def convert(path):
 	result = parse(path)
 	if result.status == "S":
 		s = StringIO()
-		p = PCSSProcessor(output=s)
+		p = PCSSProcessor(output=s, path=path)
 		p._process(result.match, path)
 		s.seek(0)
 		v = s.getvalue()
@@ -75,6 +75,7 @@ def run(args):
 				result.toJSON()
 			else:
 				# FIXME: Should set path
+				p.path = path
 				result = p.process(result.match)
 				process_time = time.time()
 				writer = CSSWriter().write(result, path)

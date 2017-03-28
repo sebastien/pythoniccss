@@ -2,7 +2,7 @@
 from __future__ import print_function
 from libparsing import Processor, ensure_str, is_string
 from .grammar import grammar, getGrammar
-from .model   import Factory, Element, Node, String
+from .model   import Factory, Stylesheet, Element, Node, String, SemanticError
 import re, os, sys
 
 BASE = os.path.dirname(os.path.abspath(__file__))
@@ -49,10 +49,20 @@ class PCSSProcessor(Processor):
 		else:
 			return cls.RGB[name.lower().strip()]
 
-	def __init__( self, grammar=None, output=sys.stdout ):
+	def __init__( self, grammar=None, output=sys.stdout, path="."):
 		Processor.__init__(self, grammar or getGrammar())
 		self.F      = Factory()
 		self.output = output
+		self.path   = path
+
+	def resolvePCSS( self, name ):
+		current = os.path.dirname(self.path) if os.path.isfile(self.path) else self.path
+		for parent in (".", current):
+			for ext in ("", ".pcss"):
+				path = os.path.join(parent, name + ext)
+				if os.path.exists(path):
+					return path
+		return None
 
 	# =========================================================================
 	# HIGH-LEVEL STRUCTURE
@@ -60,7 +70,11 @@ class PCSSProcessor(Processor):
 
 	def onSource( self, match ):
 		def dispatch( element, stack ):
-			if isinstance(element, Element):
+			if isinstance(element, Stylesheet):
+				for _ in element.content:
+					stack[0].add(_)
+				return stack
+			elif isinstance(element, Element):
 				if element._indent is not None:
 					while stack and stack[-1]._indent >= element._indent:
 						stack.pop()
@@ -93,6 +107,18 @@ class PCSSProcessor(Processor):
 
 	def onModule( self, match, name ):
 		return self.F.module(name)
+
+	def onInclude( self, match, path ):
+		rpath = self.resolvePCSS(path)
+		if rpath:
+			result = self.grammar.parsePath(rpath)
+			result = self.process(result)
+			return result
+		else:
+			raise SemanticError("Cannot resolve PCSS file: {0}".format(path))
+
+	def onImport( self, match, source ):
+		return self.F._import(source[0])
 
 	def onStatement( self, match ):
 		indent  = self.process(match["indent"])
