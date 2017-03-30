@@ -1,0 +1,16 @@
+div @as named
+	color: red
+	&.active:
+		color: black
+
+@macro macro
+	color: red
+	&.active:
+		color: black
+
+
+.named
+	named()
+
+.macro:
+	macro()

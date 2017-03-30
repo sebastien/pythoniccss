@@ -98,12 +98,12 @@ class PCSSProcessor(Processor):
 		s.balance()
 		return s
 
-	def onBlock( self, match ):
-		indent     = self.process(match["indent"])
-		selections = self.process(match["selections"])
-		code       = self.process(match["code"])
+	def onBlock( self, match, indent, selections, name, code ):
 		# The ordering of statements is deferred to the `onSource` rule
-		return [self.F.block().select(selections).indent(indent)] + code
+		return [self.F.block(name).select(selections).indent(indent)] + code
+
+	def onBlockName( self, match, name ):
+		return name
 
 	def onModule( self, match, name ):
 		return self.F.module(name)

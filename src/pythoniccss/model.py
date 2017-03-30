@@ -10,6 +10,7 @@
 # -----------------------------------------------------------------------------
 
 from __future__ import print_function
+from copy import copy
 import sys, colorsys
 
 __doc__ = """
@@ -54,8 +55,8 @@ class Factory(object):
 	def var( self, name, value, decorator=None ):
 		return Variable(name, value, decorator)
 
-	def block( self ):
-		return Block()
+	def block( self, name=None ):
+		return Block(name=name)
 
 	def macro( self, name, arguments=None):
 		return Macro(name, arguments)
@@ -147,6 +148,9 @@ class Element( object ):
 		self._indent = None
 		self._parent = None
 		self.isNode  = False
+
+	def copy( self ):
+		return copy(self)
 
 	def resolve( self, name ):
 		if isinstance( self, Node):
@@ -666,16 +670,23 @@ class Context( Node ):
 		else:
 			return super(Node, self).resolve(name)
 
-class Block(Node):
+class Block(Node, Named):
 
-	def __init__( self, selections=None ):
+	def __init__( self, selections=None, name=None ):
 		Node.__init__(self)
+		Named.__init__(self, name)
 		self.selections = []
 		self._selectors = []
 		self._indent    = 0
 		self._isDirty   = True
 		if selections:
 			self.select(selections)
+
+	def apply( self, parent ):
+		# NOTE: This has the side-effect of the new block "borrowing" the
+		# content. In theory, we should deep-copy the content, but it's
+		# OK like that as we're not multi-threading.
+		return Context((), parent).add([_.copy() for _ in self.content])
 
 	def select( self, selection ):
 		if isinstance(selection, tuple) or isinstance(selection, list):

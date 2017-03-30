@@ -74,6 +74,7 @@ def grammar(g=None, isVerbose=False):
 	g.word    ("RP",               ")")
 	g.word    ("SELF",             "&")
 	g.word    ("COMMA",            ",")
+	g.word    ("OAS",              "@as")
 	g.word    ("OMACRO",           "@macro")
 	g.word    ("OKEYFRAMES",       "@keyframes")
 	g.word    ("OIMPORT",          "@import")
@@ -184,7 +185,8 @@ def grammar(g=None, isVerbose=False):
 	# the caching key.
 	# .processMemoizationKey(lambda _,c:_ + ":" + c.getVariables().get("requiredIndent", 0))
 	g.rule("Statement",     s.CheckIndent._as("indent"), g.agroup(s.CSSProperty, s.MacroInvocation, s.Variable, s.COMMENT)._as("op"), s.EOL)
-	g.rule("Block",         s.CheckIndent._as("indent"),  s.Selections._as("selections"), s.COLON.optional(), s.EOL, s.Indent, s.Statement.zeroOrMore()._as("code"), s.Dedent)
+	g.rule("BlockName",     s.OAS, s.NAME._as("name"))
+	g.rule("Block",         s.CheckIndent._as("indent"),  s.Selections._as("selections"), s.BlockName.optional()._as("name"), s.COLON.optional(), s.EOL, s.Indent, s.Statement.zeroOrMore()._as("code"), s.Dedent)
 
 	g.rule    ("MacroDeclaration", s.OMACRO, s.NAME._as("name"), s.Parameters.optional()._as("parameters"), s.COLON.optional())
 	g.rule    ("MacroBlock",       s.CheckIndent._as("indent"), s.MacroDeclaration._as("type"), s.EOL, s.Indent, s.Statement.zeroOrMore()._as("code"), s.Dedent)

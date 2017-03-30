@@ -187,12 +187,17 @@ class CSSWriter( object ):
 	def onMacroInvocation( self, element ):
 		macro = element.resolve(element.name)
 		if not macro:
-			raise SyntaxError("Macro cannot be resolved: {0}".format(self.name))
-		if not isinstance(macro, Macro):
-			raise SyntaxError("Macro invocation does not resolve to a macro: {0} = {1}".format(self.name, macro))
-		block = macro.apply(element.arguments, element.parent())
-		for _ in self.on(block):
-			yield _
+			raise SyntaxError("Macro cannot be resolved: {0}".format(element.name))
+		if isinstance(macro, Macro):
+			block = macro.apply(element.arguments, element.parent())
+			for _ in self.on(block):
+				yield _
+		elif isinstance(macro, Block):
+			block = macro.apply(element.parent())
+			for _ in self.on(block):
+				yield _
+		else:
+			raise SyntaxError("Macro invocation does not resolve to a macro: {0} = {1}".format(element.name, macro))
 
 	def onProperty( self, element ):
 		name  = element.name
