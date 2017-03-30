@@ -153,6 +153,8 @@ class Element( object ):
 		return copy(self)
 
 	def resolve( self, name ):
+		if not name:
+			return None
 		if isinstance( self, Node):
 			for _ in self.content:
 				if isinstance(_, Named) and _.name == name:
@@ -161,6 +163,7 @@ class Element( object ):
 			return self._parent.resolve(name)
 
 	def resolveUnit( self, name ):
+		if not name: return None
 		root = self
 		while root._parent:
 			root =  root._parent
@@ -665,6 +668,8 @@ class Context( Node ):
 		return self.slots.get(name)
 
 	def resolve( self, name ):
+		if not name:
+			return None
 		if self.has(name):
 			return self.get(name)
 		else:
