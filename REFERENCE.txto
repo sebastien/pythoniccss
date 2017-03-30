@@ -17,8 +17,6 @@ div:
 	padding: 10px
 ```
 
-
-
 Comments
 ========
 
@@ -68,6 +66,28 @@ Whenever a selector's class ends with a `-` it is considered the current
 		‥
 	.-body
 		‥
+```
+
+State pseudo-selectors
+----------------------
+
+You can use the `!` character in place of the `:` pseudo-selector separator,
+which will be expanded like this:
+
+`SELECTOR!focus → SELECTOR[data-state~=focus]`
+
+Named selectors
+---------------
+
+Rules can be named by suffixing the selector with `@as <NAME>`. You can later
+apply the rule's content as a macro by invoking the `NAME`:
+
+```pcss
+div @blue:
+	color: blue
+
+p:
+	blue()
 ```
 
 Values

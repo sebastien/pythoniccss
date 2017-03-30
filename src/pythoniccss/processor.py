@@ -310,9 +310,15 @@ class PCSSProcessor(Processor):
 		suffix     =  self.process(match["suffix"])
 		node       = node[0] if node else ""
 		nid        = nid if nid else ""
-		suffix     = "".join(suffix) if suffix else ""
+		bang_suffix = []
+		reg_suffix  = []
+		for _ in suffix or ():
+			(bang_suffix if _.startswith("!") else reg_suffix).append(_)
+		suffix     = "".join(reg_suffix)
 		nclass     = "".join(nclass) if nclass else ""
 		attributes = "".join(attributes) if attributes else ""
+		for _ in bang_suffix:
+			attributes+="[data-state~=\"{0}\"]".format(_[1:])
 		if (node or nid or nclass or attributes or suffix):
 			return self.F.selector(node, nid, nclass, attributes or "", suffix)
 		else:

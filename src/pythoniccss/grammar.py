@@ -64,7 +64,7 @@ def grammar(g=None, isVerbose=False):
 	g.token   ("ATTRIBUTE",        "[a-zA-Z\-_][a-zA-Z0-9\-_]*")
 	g.token   ("ATTRIBUTE_VALUE",  "\"[^\"]*\"|'[^']*'|[^,\]]+")
 	g.token   ("ATTRIBUTE_OPERATOR",  "[\^]?=")
-	g.token   ("SELECTOR_SUFFIX",  "::?[\-a-z][a-z0-9\-]*(\([^\)]+\))?")
+	g.token   ("SELECTOR_SUFFIX",  "(::?|!)[\-a-z][a-z0-9\-]*(\([^\)]+\))?")
 	g.token   ("SELECTION_OPERATOR", "\>|\+|\~|[ ]+|\<\<|\<")
 	g.word    ("EQUAL",             "=")
 	g.word    ("COLON",            ":")
