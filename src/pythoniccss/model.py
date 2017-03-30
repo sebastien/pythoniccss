@@ -784,9 +784,12 @@ class Selector(Leaf):
 		self.namespace = value
 		return self
 
-	def copy( self ):
+	def copy( self, deep=True ):
 		sel = Selector(self.node, self.id, self.classes, self.attributes, self.suffix)
-		sel.next = (self.next[0], self.next[1].copy()) if self.next else None
+		if deep:
+			sel.next = (self.next[0], self.next[1].copy()) if self.next else None
+		else:
+			sel.next = self.next
 		return sel
 
 	def last( self, value=NOTHING ):
@@ -807,10 +810,11 @@ class Selector(Leaf):
 			return selector.narrow(self, ">")
 		else:
 			last = self.last()
-			if self.isBEMPrefix() and selector.isBEMSuffix():
-				last.mergeBEM(selector)
-				last.next = selector.next
-			elif selector.node == "&":
+			bem_prefix = self.getBEMPrefix()
+			bem_suffix = selector.getBEMSuffix()
+			if bem_prefix and bem_suffix:
+				selector = selector.expandBEM(bem_prefix, bem_suffix)
+			if selector.node == "&":
 				assert self.node == "&" or selector.node == "&"
 				last.merge(selector)
 				last.next = selector.next
@@ -832,22 +836,13 @@ class Selector(Leaf):
 		self.suffix     += selector.suffix
 		return self
 
-	def mergeBEM( self, selector ):
-		pa=[] ; ca=[]
-		for _ in self.classes.split("."):
-			if not _: continue
-			(pa if _.endswith("-") else ca).append(_)
-		pb=[] ; cb=[]
-		for _ in selector.classes.split("."):
-			if not _: continue
-			(pb if _.startswith("-") else cb).append(_)
-		assert len(pa) == 1, "Expected 1 BEM prefix, got: {0}".format(pa)
-		assert len(pb) == 1, "Expected 1 BEM suffix, got: {0}".format(pb)
-		classes = ".".join([pa[0] + pb[0][1:]] + ca + cb)
-		classes = "." + classes if classes else ""
-		self.merge(selector)
-		self.classes = classes
-		return self
+	def expandBEM( self, prefix, suffix ):
+		"""Expands the BEM suffix to be prefixed with the given prefix in this
+		selector and its children."""
+		res         = self.copy(False)
+		res.classes = ".".join(prefix + _[1:] if _ == suffix else _ for _ in self.classes.split("."))
+		res.next    = (res.next[0], res.next[1].expandBEM(prefix, suffix)) if res.next else None
+		return res
 
 	def expr( self, single=False, namespace=True ):
 		classes = self.classes
@@ -867,11 +862,25 @@ class Selector(Leaf):
 			res = res[:-1].strip() or ".__module__"
 		return res
 
+	def getBEMPrefix( self ):
+		for name in self.classes.split("."):
+			if name.endswith("-"): return name
+		if self.next:
+			return self.next[1].getBEMPrefix()
+		return None
+
+	def getBEMSuffix( self ):
+		for name in self.classes.split("."):
+			if name.startswith("-"): return name
+		if self.next:
+			return self.next[1].getBEMSuffix()
+		return None
+
 	def isBEMPrefix( self ):
-		return self.classes.endswith("-") or "-." in self.classes
+		return self.classes.endswith("-") or "-." in self.classes or self.next and self.next[1].isBEMPrefix()
 
 	def isBEMSuffix( self ):
-		return self.classes.startswith("-") or ".-" in self.classes
+		return self.classes.startswith("-") or ".-" in self.classes or self.next and self.next[1].isBEMSuffix()
 
 	def isBEM( self ):
 		return self.isBEMPrefix() or self.isBEMSuffix()
