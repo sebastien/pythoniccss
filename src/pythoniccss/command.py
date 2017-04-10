@@ -11,7 +11,7 @@
 
 from __future__ import print_function
 import re, os, sys, argparse, json, copy, io, time
-from   io        import StringIO
+from   io        import BytesIO
 from  .grammar   import getGrammar
 from  .processor import PCSSProcessor
 from  .writer    import CSSWriter
@@ -22,18 +22,20 @@ try:
 except ImportError:
 	import logging
 
-def parse(path):
-	return getGrammar().parsePath(path)
+def parse(path, convert=True):
+	res = getGrammar().parsePath(path)
+	return processResult(res, path) if convert else res
 
-def parseString(text):
-	return getGrammar().parseString(text)
+def parseString(text, convert=True):
+	res = getGrammar().parseString(text)
+	return processResult(res) if convert else res
 
-def convert(path):
-	result = parse(path)
+def processResult( result, path=None ):
 	if result.status == "S":
-		s = StringIO()
-		p = PCSSProcessor(output=s, path=path)
-		p._process(result.match, path)
+		s = BytesIO()
+		p = PCSSProcessor(path=path)
+		m = p.process(result.match)
+		writer = CSSWriter(output=s).write(m)
 		s.seek(0)
 		v = s.getvalue()
 		s.close()
@@ -63,7 +65,7 @@ def run(args):
 	g = getGrammar(isVerbose=args.verbose)
 	if args.output: output = open(args.output, "w")
 	g.prepare()
-	p = PCSSProcessor(output=output, grammar=g)
+	p = PCSSProcessor(grammar=g)
 	for path in args.files:
 		start_time = time.time()
 		result = g.parsePath(path)
@@ -78,7 +80,7 @@ def run(args):
 				p.path = path
 				result = p.process(result.match)
 				process_time = time.time()
-				writer = CSSWriter().write(result, path)
+				writer = CSSWriter(output=output).write(result)
 				write_time  = time.time()
 				if args.profile:
 					parse_d   = parse_time    - start_time

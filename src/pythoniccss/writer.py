@@ -63,20 +63,22 @@ PREFIXES = (
 
 class CSSWriter( object ):
 
-	def __init__( self ):
-		self.output     = sys.stdout
+	def __init__( self, output=sys.stdout ):
+		self.output     = output
 		self.isOpen     = None
 		self._namespace = None
 
-	def write( self, element, path=None ):
+	def write( self, element ):
 		self._namespace = self
 		for _ in self.on(element):
 			self._write(_)
 		self.output.flush()
 
 	def _write( self, value ):
-		if isinstance(value, unicode) or isinstance(value, str):
+		if isinstance(value, unicode):
 			self.output.write(value.encode("utf8"))
+		elif isinstance(value, str):
+			self.output.write(value)
 		elif value:
 			for _ in value:
 				self._write(_)

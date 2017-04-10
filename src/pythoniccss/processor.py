@@ -49,10 +49,9 @@ class PCSSProcessor(Processor):
 		else:
 			return cls.RGB[name.lower().strip()]
 
-	def __init__( self, grammar=None, output=sys.stdout, path="."):
+	def __init__( self, grammar=None, path="."):
 		Processor.__init__(self, grammar or getGrammar())
 		self.F      = Factory()
-		self.output = output
 		self.path   = path
 
 	def resolvePCSS( self, name ):

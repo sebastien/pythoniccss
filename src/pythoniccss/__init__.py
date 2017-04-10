@@ -9,7 +9,7 @@
 # Last modification : 21-Nov-2016
 # -----------------------------------------------------------------------------
 
-from .command   import run, parse, parseString, convert
+from .command   import run, parse, parseString, processResult
 
 VERSION    = "0.7.0"
 LICENSE    = "http://ffctn.com/doc/licenses/bsd"
@@ -20,7 +20,7 @@ engine <http://github.com/sebastien/parsing>, which sadly has an important
 performance penalty, but offers greated easy of development/update.
 """
 
-process = parseString
+process = lambda _:parseString(_, True)
 
 if __name__ == "__main__":
 	import sys
