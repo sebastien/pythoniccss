@@ -15,8 +15,6 @@ COLOR_PROPERTIES     = (
 	"linear-gradient"
 )
 
-
-
 class PCSSProcessor(Processor):
 	"""Creates the model for the CSS stylesheet based on the result returned
 	by the grammar. This is essentially an AST-like generator for the grammar."""
@@ -161,7 +159,8 @@ class PCSSProcessor(Processor):
 	def onCSSProperty( self, match ):
 		"""The main CSS declaration."""
 		name      = self.process(match["name"])
-		values    = self.F.list(self.process(match["values"])).unwrap()
+		values    = self.process(match["values"])
+		values    = self.F.list(values).unwrap() if isinstance(values, list) else values
 		important = self.process(match["important"])
 		if name in COLOR_PROPERTIES and values:
 			if isinstance(values, String):
@@ -181,6 +180,10 @@ class PCSSProcessor(Processor):
 	# =========================================================================
 	# EXPRESSION
 	# =========================================================================
+
+	def onExpressions( self, match, head, tail):
+		tail  = [_[1] for _  in tail]
+		return self.F.list([head] + tail, " ").unwrap()
 
 	def onExpressionList( self, match, head, tail):
 		tail  = [_[1] for _  in tail]

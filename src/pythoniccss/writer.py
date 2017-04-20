@@ -126,6 +126,8 @@ class CSSWriter( object ):
 			yield self.onList(element)
 		elif isinstance(element, Reference):
 			yield self.onReference(element)
+		elif isinstance(element, Parens):
+			yield self.onParens(element)
 		elif isinstance(element, Variable):
 			yield self.onVariable(element)
 		elif isinstance(element, Computation):
@@ -178,8 +180,7 @@ class CSSWriter( object ):
 		value = element.value
 		yield name
 		yield "("
-		for _ in element.arguments or []:
-			yield self.on(_)
+		yield self.on(element.arguments)
 		yield ")"
 
 	def onMethodInvocation( self, element ):
@@ -256,10 +257,13 @@ class CSSWriter( object ):
 			while value[-1] in "0.": value = value[:-1]
 			yield "{0}{1}".format(value, element.unit or "")
 
-
-
 	def onRawString( self, element ):
 		yield (element.value)
+
+	def onParens( self, element ):
+		yield "("
+		yield (self.on(element.value))
+		yield ")"
 
 	def onString( self, element ):
 		if element.quote: yield (element.quote)

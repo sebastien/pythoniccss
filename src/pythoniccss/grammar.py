@@ -101,6 +101,7 @@ def grammar(g=None, isVerbose=False):
 	g.token   ("FQ_NAME",          "[\w_][\w\d_]*(\.[\w_][\w\d_]*)*")
 	g.token   ("METHOD_NAME",      "[\w_][\w\d_]*")
 	g.token   ("NAME",             "[\w_][\w\d_]*")
+	g.token   ("CSSNAME",          "[\w_\-][\-\w\d_]*")
 	g.token   ("REFERENCE",        "\$([\w_][\w\d_]*)")
 	g.token   ("COLOR_HEX",        "\#([A-Fa-f0-9][A-Fa-f0-9]?[A-Fa-f0-9]?[A-Fa-f0-9]?[A-Fa-f0-9]?[A-Fa-f0-9]?([A-Fa-f0-9][A-Fa-f0-9])?)")
 	g.token   ("COLOR_RGB",        "rgba?\((\s*\d+\s*,\s*\d+\s*,\s*\d+\s*(,\s*\d+(\.\d+)?\s*)?)\)")
@@ -136,8 +137,9 @@ def grammar(g=None, isVerbose=False):
 	g.rule      ("Parameters",       s.VARIABLE_NAME._as("head"), g.arule(s.COMMA, s.VARIABLE_NAME).zeroOrMore()._as("tail"))
 	g.rule      ("Arguments",        s.Value._as("head"), g.arule(s.COMMA, s.Value).zeroOrMore()._as("tail"))
 	g.rule      ("Expression")
-	g.rule      ("ExpressionList",   s.Expression._as("head"), g.arule(s.COMMA, s.Expression).zeroOrMore()._as("tail"))
-	g.rule      ("CSSInvocation",    s.NAME._as("name"), s.LP, s.ExpressionList.oneOrMore()._as("values"), s.RP)
+	g.rule      ("Expressions",      s.Expression._as("head"), g.arule(s.SPACE, s.Expression).zeroOrMore()._as("tail"))
+	g.rule      ("ExpressionList",   s.Expressions._as("head"), g.arule(s.COMMA, s.Expressions).zeroOrMore()._as("tail"))
+	g.rule      ("CSSInvocation",    s.CSSNAME._as("name"), s.LP, s.ExpressionList.optional()._as("values"), s.RP)
 
 	# NOTE: We use Prefix and Suffix to avoid recursion, which creates a lot
 	# of problems with parsing expression grammars
@@ -154,7 +156,7 @@ def grammar(g=None, isVerbose=False):
 	# OPERATIONS
 	# =========================================================================
 
-	g.rule      ("CSSProperty",      s.CSS_PROPERTY._as("name"), s.COLON, s.ExpressionList.oneOrMore()._as("values"), s.IMPORTANT.optional()._as("important"), s.SEMICOLON.optional())
+	g.rule      ("CSSProperty",      s.CSS_PROPERTY._as("name"), s.COLON, s.ExpressionList._as("values"), s.IMPORTANT.optional()._as("important"), s.SEMICOLON.optional())
 	g.rule      ("MacroInvocation",  s.NAME._as("name"),   s.LP, s.Arguments.optional()._as("arguments"), s.RP)
 	g.rule      ("Variable",  s.VARIABLE_NAME._as("name"), s.EQUAL, s.ExpressionList._as("value"))
 

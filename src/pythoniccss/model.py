@@ -486,10 +486,12 @@ class List( Leaf, Output ):
 
 	def __init__( self, value, separator=None ):
 		Leaf.__init__(self, value)
+		assert not value or isinstance(value, list)
 		Output.__init__(self)
 		self.separator = separator
 
 	def unwrap( self ):
+		"""Unwraps the list if it has only one element"""
 		if self.value and len(self.value) == 1:
 			return self.value[0]
 		else:
@@ -883,7 +885,7 @@ class Selector(Leaf):
 		else:
 			classes += [self._stripBEM(_) for _ in bem_classes]
 		# And now we output the result
-		suffixes = " ".join(_ for _ in suffixes if _)
+		suffixes = (" " + " ".join(_ for _ in suffixes if _)) if suffixes else ""
 		classes  = ("." + " ".join(classes)) if classes else ""
 		res = u"{0}{1}{2}{3}{4}{5}{6}".format(prefix, self.node, self.id, classes, self.attributes, self.suffix, suffixes)
 		if res.endswith("&"):
