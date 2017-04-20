@@ -856,34 +856,55 @@ class Selector(Leaf):
 		"""Expands the BEM suffix to be prefixed with the given prefix in this
 		selector and its children."""
 		res         = self.copy(False)
-		res.classes = ".".join(prefix + _[1:] if _ == suffix else _ for _ in self.classes.split("."))
+		res.classes = ".".join(prefix + _[1:] if _ and _[0] == "-" else _ for _ in self.classes.split("."))
 		res.next    = (res.next[0], res.next[1].expandBEM(prefix, suffix)) if res.next else None
 		return res
 
 	def expr( self, single=False, namespace=True ):
-		classes = self.classes
-		if classes:
-			classes = ".".join(_[0:-1] if _.endswith("-") else _ for _ in classes.split("."))
-		res = u"{0}{1}{2}{3}{4}".format(self.node, self.id, classes, self.attributes, self.suffix)
+		classes     = []
+		bem_classes = []
+		for _ in self.classes.split("."):
+			if not _: continue
+			if _.startswith("-") or _.endswith("-"):
+				bem_classes.append(_)
+			else:
+				classes.append(_)
+		prefix   = u""
+		suffixes = []
+		# We add the namespace
 		if namespace and self.namespace:
-			res = ".use-{0} ".format(self.namespace) + res
+			prefix = ".use-{0} ".format(self.namespace)
+		# We add the suffixes
 		if not single and self.next:
 			op, sel = self.next
-			res += " "
 			if op and op != " ":
-				res += op
-				res += " "
-			res += sel.expr(namespace=False)
+				suffixes.append(op)
+			suffixes.append(sel.expr(namespace=False))
+		else:
+			classes += [self._stripBEM(_) for _ in bem_classes]
+		# And now we output the result
+		suffixes = " ".join(_ for _ in suffixes if _)
+		classes  = ("." + " ".join(classes)) if classes else ""
+		res = u"{0}{1}{2}{3}{4}{5}{6}".format(prefix, self.node, self.id, classes, self.attributes, self.suffix, suffixes)
 		if res.endswith("&"):
 			res = res[:-1].strip() or ".__module__"
 		return res
 
+	def _stripBEM( self, text ):
+		if text.startswith("-"): text = text[1:]
+		if text.endswith("-"):   text = text[:-1]
+		return text
+
 	def getBEMPrefix( self ):
+		prefix = None
 		for name in self.classes.split("."):
-			if name.endswith("-"): return name
+			if name.endswith("-"):
+				prefix = name
+				break
 		if self.next:
-			return self.next[1].getBEMPrefix()
-		return None
+			return self.next[1].getBEMPrefix() or prefix
+		else:
+			return prefix
 
 	def getBEMSuffix( self ):
 		for name in self.classes.split("."):
