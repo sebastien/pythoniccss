@@ -188,9 +188,23 @@ class CSSWriter( object ):
 			yield _
 
 	def onMacroInvocation( self, element ):
-		macro = element.resolve(element.name)
+		if element.name == "merge":
+			if len(element.arguments) != 1:
+				raise SemanticError("merge() macro only takes one argument")
+			elif not isinstance(element.arguments[0], String):
+				raise SemanticError("merge() expects a string as argument")
+			else:
+				selector = element.arguments[0].value
+				name     = selector
+				macro = element.root().findSelector(selector)
+				if macro:
+					macro = macro.copy()
+					macro.content = [_ for _ in macro.content if not isinstance(_, Block)]
+		else:
+			macro = element.resolve(element.name)
+			name  = element.name
 		if not macro:
-			raise SyntaxError("Macro cannot be resolved: {0}".format(element.name))
+			raise SyntaxError("Macro cannot be resolved: {0}".format(name))
 		if isinstance(macro, Macro):
 			block = macro.apply(element.arguments, element.parent())
 			for _ in self.on(block):
@@ -201,6 +215,7 @@ class CSSWriter( object ):
 				yield _
 		else:
 			raise SyntaxError("Macro invocation does not resolve to a macro: {0} = {1}".format(element.name, macro))
+
 
 	def onProperty( self, element ):
 		name  = element.name

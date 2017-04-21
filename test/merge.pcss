@@ -1,0 +1,11 @@
+// The merge() special macro merges a top-level rule
+// by selector into the current scope. This only merges
+// direct style rules, not the sub-level style rules.
+.color-
+	.-red
+		color: red
+		sub:
+			color: blue
+
+div:
+	merge(.color-red)

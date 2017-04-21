@@ -214,6 +214,7 @@ background-image: url(http://ffctn.com/lib/images/nothing.png).embed()
 
 which will download/retrieve the file and produce a base-64 encoded
 data URL version of it.
+
 Macros
 ======
 
@@ -229,6 +230,25 @@ by calling the macro with `<NAME>()`
 div.cleared:
 	cleared()
 ```
+
+`merge()`
+----------
+
+The `merge()` is a special macro that merges directives from an already
+defined selector into the current scope:
+
+```pcss
+.expand-w:
+	position: absolute
+	left: 0px
+	right: 0px
+
+.sidebar:
+	merge(.expand-w)
+```
+
+note that this won't merge any sub-block, only the style properties
+directly defined there.
 
 CSS3 support
 ============

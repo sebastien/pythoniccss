@@ -169,8 +169,32 @@ class Element( object ):
 			root =  root._parent
 		return root.resolve(name)
 
+	def findSelector( self, selector ):
+		"""Returns the first rule that matches the given selector."""
+		if not selector:
+			return None
+		if isinstance( self, Node):
+			for _ in self.content:
+				if isinstance(_, Block):
+					for s in _.selectors():
+						if s.expr() == selector:
+							return _
+			for _ in self.content:
+				s = _.findSelector(selector)
+				if s: return s
+		return None
+
+
+
 	def invoke( self, name, arguments ):
 		raise SemanticError("{0} does not respond to method {1}".format(self, name))
+
+	def root( self ):
+		if self._parent:
+			return self._parent.root()
+		else:
+			return self
+
 	def parent( self, value=NOTHING ):
 		if value is NOTHING:
 			return self._parent
@@ -862,6 +886,7 @@ class Selector(Leaf):
 		res.next    = (res.next[0], res.next[1].expandBEM(prefix, suffix)) if res.next else None
 		return res
 
+	# FIXME: This should be cached as it can be quite expensive to construct
 	def expr( self, single=False, namespace=True ):
 		classes     = []
 		bem_classes = []
@@ -875,7 +900,7 @@ class Selector(Leaf):
 		suffixes = []
 		# We add the namespace
 		if namespace and self.namespace:
-			prefix = ".use-{0} ".format(self.namespace)
+			prefix = ".use-{0}".format(self.namespace)
 		# We add the suffixes
 		if not single and self.next:
 			op, sel = self.next
@@ -885,9 +910,10 @@ class Selector(Leaf):
 		else:
 			classes += [self._stripBEM(_) for _ in bem_classes]
 		# And now we output the result
-		suffixes = (" " + " ".join(_ for _ in suffixes if _)) if suffixes else ""
+		suffixes = (" ".join(_ for _ in suffixes if _)) if suffixes else ""
 		classes  = ("." + " ".join(classes)) if classes else ""
-		res = u"{0}{1}{2}{3}{4}{5}{6}".format(prefix, self.node, self.id, classes, self.attributes, self.suffix, suffixes)
+		sel      = u"{0}{1}{2}{3}{4}".format(self.node, self.id, classes, self.attributes, self.suffix)
+		res      = " ".join((_ for _ in (prefix, sel, suffixes) if _))
 		if res.endswith("&"):
 			res = res[:-1].strip() or ".__module__"
 		return res
