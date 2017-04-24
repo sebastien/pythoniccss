@@ -157,7 +157,7 @@ def grammar(g=None, isVerbose=False):
 	# =========================================================================
 
 	g.rule      ("CSSProperty",      s.CSS_PROPERTY._as("name"), s.COLON, s.ExpressionList._as("values"), s.IMPORTANT.optional()._as("important"), s.SEMICOLON.optional())
-	g.rule      ("MacroInvocation",  s.NAME._as("name"),   s.LP, s.Arguments.optional()._as("arguments"), s.RP)
+	g.rule      ("MacroInvocation",  s.CSSNAME._as("name"),   s.LP, s.Arguments.optional()._as("arguments"), s.RP)
 	g.rule      ("Variable",  s.VARIABLE_NAME._as("name"), s.EQUAL, s.ExpressionList._as("value"))
 
 	# =========================================================================
@@ -187,10 +187,10 @@ def grammar(g=None, isVerbose=False):
 	# the caching key.
 	# .processMemoizationKey(lambda _,c:_ + ":" + c.getVariables().get("requiredIndent", 0))
 	g.rule("Statement",     s.CheckIndent._as("indent"), g.agroup(s.CSSProperty, s.MacroInvocation, s.Variable, s.COMMENT)._as("op"), s.EOL)
-	g.rule("BlockName",     s.OAS, s.NAME._as("name"))
+	g.rule("BlockName",     s.OAS, s.CSSNAME._as("name"))
 	g.rule("Block",         s.CheckIndent._as("indent"),  s.Selections._as("selections"), s.BlockName.optional()._as("name"), s.COLON.optional(), s.EOL, s.Indent, s.Statement.zeroOrMore()._as("code"), s.Dedent)
 
-	g.rule    ("MacroDeclaration", s.OMACRO, s.NAME._as("name"), s.Parameters.optional()._as("parameters"), s.COLON.optional())
+	g.rule    ("MacroDeclaration", s.OMACRO, s.CSSNAME._as("name"), s.Parameters.optional()._as("parameters"), s.COLON.optional())
 	g.rule    ("MacroBlock",       s.CheckIndent._as("indent"), s.MacroDeclaration._as("type"), s.EOL, s.Indent, s.Statement.zeroOrMore()._as("code"), s.Dedent)
 
 	g.group   ("KeyframeSelector",  g.aword("from"), g.aword("to"), s.Number)

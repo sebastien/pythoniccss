@@ -67,9 +67,11 @@ class CSSWriter( object ):
 		self.output     = output
 		self.isOpen     = None
 		self._namespace = None
+		self._selectors = []
 
 	def write( self, element ):
 		self._namespace = self
+		self._selectors = {}
 		for _ in self.on(element):
 			self._write(_)
 		self.output.flush()
@@ -148,6 +150,8 @@ class CSSWriter( object ):
 		# Here we only output the selectors if we know we have one
 		# direct child with significant output.
 		has_content = next((_ for _ in element.content if isinstance(_, Output)), False)
+		for s in element.selectors():
+			self._selectors[s.expr(namespace=False)] = element
 		if has_content:
 			if self.isOpen:
 				yield "}\n"
@@ -196,15 +200,25 @@ class CSSWriter( object ):
 			else:
 				selector = element.arguments[0].value
 				name     = selector
-				macro = element.root().findSelector(selector)
+				macro    = self._findSelector(element, selector)
 				if macro:
 					macro = macro.copy()
 					macro.content = [_ for _ in macro.content if not isinstance(_, Block)]
+		elif element.name == "extend":
+			if len(element.arguments) != 1:
+				raise SemanticError("extend() macro only takes one argument")
+			elif not isinstance(element.arguments[0], String):
+				raise SemanticError("extend() expects a string as argument")
+			else:
+				selector = element.arguments[0].value
+				name     = selector
+				macro    = self._findSelector(element, selector)
 		else:
-			macro = element.resolve(element.name)
+			# Macro resolves as selectors by default
+			macro = element.resolve(element.name) or self._findSelector(element, "." + element.name)
 			name  = element.name
 		if not macro:
-			raise SyntaxError("Macro cannot be resolved: {0}".format(name))
+			raise SyntaxError("Macro {0} cannot be resolved: {1}".format(element.name, name))
 		if isinstance(macro, Macro):
 			block = macro.apply(element.arguments, element.parent())
 			for _ in self.on(block):
@@ -311,8 +325,12 @@ class CSSWriter( object ):
 		yield ("\t}\n")
 
 	def onImportDirective( self, element ):
-		yield "@import "
-		yield self.on(element.value)
-		yield "\n"
+		# We don't output imports for now
+		pass
+
+	def _findSelector( self, element, selector ):
+		s = self._selectors.get(selector) or element.root().findSelector(selector)
+		if s: self._selectors[selector] = s
+		return s
 
 # EOF

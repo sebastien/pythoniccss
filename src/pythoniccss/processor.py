@@ -93,17 +93,17 @@ class PCSSProcessor(Processor):
 			for _ in self.process(m):
 				dispatch(_, stack)
 		s.balance()
-		return s
+		return s.offsets(match)
 
 	def onBlock( self, match, indent, selections, name, code ):
 		# The ordering of statements is deferred to the `onSource` rule
-		return [self.F.block(name).select(selections).indent(indent)] + code
+		return [self.F.block(name).select(selections).indent(indent).offsets(match)] + code
 
 	def onBlockName( self, match, name ):
 		return name
 
 	def onModule( self, match, name ):
-		return self.F.module(name)
+		return self.F.module(name).offsets(match)
 
 	def onInclude( self, match, path ):
 		rpath = self.resolvePCSS(path)
@@ -115,7 +115,14 @@ class PCSSProcessor(Processor):
 			raise SemanticError("Cannot resolve PCSS file: {0}".format(path))
 
 	def onImport( self, match, source ):
-		return self.F._import(source[0])
+		source = source[0]
+		path   = self.resolvePCSS(source)
+		if path:
+			result     = self.grammar.parsePath(path)
+			stylesheet = PCSSProcessor(path=path).process(result)
+			return self.F._import(source, stylesheet).offsets(match)
+		else:
+			raise SemanticError("Cannot resolve PCSS module: {0}".format(source))
 
 	def onStatement( self, match ):
 		indent  = self.process(match["indent"])
@@ -126,29 +133,29 @@ class PCSSProcessor(Processor):
 		return self.process(match[0])
 
 	def onUnit(self, match, name, value ):
-		return self.F.unit(name, value)
+		return self.F.unit(name, value).offsets(match)
 
 	def onMacroDeclaration( self, match, name, parameters ):
-		return self.F.macro(name, parameters)
+		return self.F.macro(name, parameters).offsets(match)
 
 	def onMacroBlock( self, match, indent, type, code):
 		return type.add(code).indent(indent)
 
 	def onMacroInvocation( self, match, name, arguments ):
-		return self.F.invokemacro(name, arguments)
+		return self.F.invokemacro(name, arguments).offsets(match)
 
 	def onKeyframesBlock( self, match, indent, name, frames ):
-		return self.F.keyframes(name).add(frames).indent(indent)
+		return self.F.keyframes(name).add(frames).indent(indent).offsets(match)
 
 	def onKeyframe( self, match, indent, selector, code):
-		return self.F.keyframe(selector).add(code).indent(indent)
+		return self.F.keyframe(selector).add(code).indent(indent).offsets(match)
 
 	def onKeyframeSelector( self, match):
 		value = self.process(match[0])
 		if value == "from":
-			return self.F.number(0, "%")
+			return self.F.number(0, "%").offsets(match)
 		if value == "to":
-			return self.F.number(100, "%")
+			return self.F.number(100, "%").offsets(match)
 		value.unit = value.unit or "%"
 		return value
 
@@ -166,7 +173,7 @@ class PCSSProcessor(Processor):
 			if isinstance(values, String):
 				rgb = self.ColorFromName(values.value)
 				if rgb: values = self.F.rgb(rgb)
-		return self.F.property(name, values, important)
+		return self.F.property(name, values, important).offsets(match)
 
 	def onAssignment( self, match ):
 		"""The statement of a declaration."""
@@ -175,7 +182,7 @@ class PCSSProcessor(Processor):
 	def onVariable( self, match, name, value ):
 		"""The declaration of a variable or special directive
 		such as @unit."""
-		return self.F.var(name, value)
+		return self.F.var(name, value).offsets(match)
 
 	# =========================================================================
 	# EXPRESSION
@@ -183,11 +190,11 @@ class PCSSProcessor(Processor):
 
 	def onExpressions( self, match, head, tail):
 		tail  = [_[1] for _  in tail]
-		return self.F.list([head] + tail, " ").unwrap()
+		return self.F.list([head] + tail, " ").unwrap().offsets(match)
 
 	def onExpressionList( self, match, head, tail):
 		tail  = [_[1] for _  in tail]
-		return self.F.list([head] + tail, ",").unwrap()
+		return self.F.list([head] + tail, ",").unwrap().offsets(match)
 
 	def onPrefix( self, match ):
 		return self.process(match)[0]

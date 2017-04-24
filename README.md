@@ -231,11 +231,11 @@ div.cleared:
 	cleared()
 ```
 
-`merge()`
-----------
+`merge()` and `extend()`
+------------------------
 
-The `merge()` is a special macro that merges directives from an already
-defined selector into the current scope:
+The `merge()` and `extend()` are a special macro that merge or extend directives from an already
+defined selector of the stylesheet.
 
 ```pcss
 .expand-w:
@@ -247,8 +247,28 @@ defined selector into the current scope:
 	merge(.expand-w)
 ```
 
-note that this won't merge any sub-block, only the style properties
-directly defined there.
+note that merge won't merge any sub-block, only the style properties
+directly defined there. On the other hand `extend()` will copy-paste the rule
+and all its children.
+
+
+Automatic macro
+---------------
+
+Any rule that has only one class selector will be accessible as a corresponding
+macro:
+
+```pcss
+.expand-w
+	position: absolute
+	left: 0px
+	right: 0px
+
+.expand
+	expand-w()
+	top:    0px
+	bottom: 0px
+```
 
 CSS3 support
 ============

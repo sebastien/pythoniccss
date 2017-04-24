@@ -121,8 +121,8 @@ class Factory(object):
 	def unit( self, name, value ):
 		return Unit(name, value)
 
-	def _import( self, source):
-		return ImportDirective(source)
+	def _import( self, source, stylesheet):
+		return ImportDirective(source, stylesheet)
 
 # -----------------------------------------------------------------------------
 #
@@ -148,9 +148,15 @@ class Element( object ):
 		self._indent = None
 		self._parent = None
 		self.isNode  = False
+		self._offsets = [None, None]
 
 	def copy( self ):
 		return copy(self)
+
+	def offsets( self, match ):
+		self._offsets[0] = match.offset
+		self._offsets[1] = match.offset + match.length
+		return self
 
 	def resolve( self, name ):
 		if not name:
@@ -173,18 +179,23 @@ class Element( object ):
 		"""Returns the first rule that matches the given selector."""
 		if not selector:
 			return None
+		imports = []
 		if isinstance( self, Node):
 			for _ in self.content:
-				if isinstance(_, Block):
+				if isinstance(_, ImportDirective):
+					imports.append(_)
+				elif isinstance(_, Block):
 					for s in _.selectors():
-						if s.expr() == selector:
+						if s.expr(namespace=False) == selector:
 							return _
 			for _ in self.content:
 				s = _.findSelector(selector)
 				if s: return s
+		# We resolve in imports as well
+		for _ in reversed(imports):
+			s = _.stylesheet.findSelector(selector)
+			if s: return s
 		return None
-
-
 
 	def invoke( self, name, arguments ):
 		raise SemanticError("{0} does not respond to method {1}".format(self, name))
@@ -602,8 +613,9 @@ class ModuleDirective( Directive, Named ):
 
 class ImportDirective( Directive ):
 
-	def __init__( self, value ):
+	def __init__( self, value, stylesheet ):
 		Directive.__init__(self, value)
+		self.stylesheet = stylesheet
 
 class Unit( Directive, Named) :
 
@@ -800,7 +812,7 @@ class Stylesheet(Node):
 
 	def __init__( self ):
 		Node.__init__(self)
-		self.units = {}
+		self.units    = {}
 
 # -----------------------------------------------------------------------------
 #
@@ -816,7 +828,7 @@ class Selector(Leaf):
 		Leaf.__init__(self)
 		self.node       = node
 		self.id         = id
-		self.classes    = classes
+		self.classes    = classes if isinstance(classes, list) else [_.strip() for _ in classes.split(".") if _]
 		self.attributes = attributes
 		self.suffix     = suffix
 		self.next       = None
@@ -882,7 +894,7 @@ class Selector(Leaf):
 		"""Expands the BEM suffix to be prefixed with the given prefix in this
 		selector and its children."""
 		res         = self.copy(False)
-		res.classes = ".".join(prefix + _[1:] if _ and _[0] == "-" else _ for _ in self.classes.split("."))
+		res.classes = [prefix + _[1:] if _ and _[0] == "-" else _ for _ in self.classes]
 		res.next    = (res.next[0], res.next[1].expandBEM(prefix, suffix)) if res.next else None
 		return res
 
@@ -890,12 +902,12 @@ class Selector(Leaf):
 	def expr( self, single=False, namespace=True ):
 		classes     = []
 		bem_classes = []
-		for _ in self.classes.split("."):
+		for _ in self.classes:
 			if not _: continue
 			if _.startswith("-") or _.endswith("-"):
 				bem_classes.append(_)
 			else:
-				classes.append(_)
+				classes.insert(0,_)
 		prefix   = u""
 		suffixes = []
 		# We add the namespace
@@ -908,10 +920,11 @@ class Selector(Leaf):
 				suffixes.append(op)
 			suffixes.append(sel.expr(namespace=False))
 		else:
-			classes += [self._stripBEM(_) for _ in bem_classes]
+			# BEM classes are always first
+			classes = [self._stripBEM(_) for _ in bem_classes] + classes
 		# And now we output the result
 		suffixes = (" ".join(_ for _ in suffixes if _)) if suffixes else ""
-		classes  = ("." + " ".join(classes)) if classes else ""
+		classes  = ("." + ".".join(classes)) if classes else ""
 		sel      = u"{0}{1}{2}{3}{4}".format(self.node, self.id, classes, self.attributes, self.suffix)
 		res      = " ".join((_ for _ in (prefix, sel, suffixes) if _))
 		if res.endswith("&"):
@@ -925,7 +938,7 @@ class Selector(Leaf):
 
 	def getBEMPrefix( self ):
 		prefix = None
-		for name in self.classes.split("."):
+		for name in self.classes:
 			if name.endswith("-"):
 				prefix = name
 				break
@@ -935,17 +948,23 @@ class Selector(Leaf):
 			return prefix
 
 	def getBEMSuffix( self ):
-		for name in self.classes.split("."):
+		for name in self.classes:
 			if name.startswith("-"): return name
 		if self.next:
 			return self.next[1].getBEMSuffix()
 		return None
 
 	def isBEMPrefix( self ):
-		return self.classes.endswith("-") or "-." in self.classes or self.next and self.next[1].isBEMPrefix()
+		for _ in self.classes:
+			if _.endswith("-"):
+				return True
+		return self.next and self.next[1].isBEMPrefix() or False
 
 	def isBEMSuffix( self ):
-		return self.classes.startswith("-") or ".-" in self.classes or self.next and self.next[1].isBEMSuffix()
+		for _ in self.classes:
+			if _.startswith("-"):
+				return True
+		return self.next and self.next[1].isBEMSuffix() or False
 
 	def isBEM( self ):
 		return self.isBEMPrefix() or self.isBEMSuffix()
