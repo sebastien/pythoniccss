@@ -6,6 +6,11 @@ from .model   import Factory, Stylesheet, Element, Node, String, SemanticError
 import re, os, sys
 
 BASE = os.path.dirname(os.path.abspath(__file__))
+PCSS_PATHS = [
+	".",
+	"lib/pcss",
+	"src/pcss"
+]
 
 COLOR_PROPERTIES     = (
 	"background",
@@ -54,7 +59,7 @@ class PCSSProcessor(Processor):
 
 	def resolvePCSS( self, name ):
 		current = os.path.dirname(self.path) if os.path.isfile(self.path) else self.path
-		for parent in (".", current):
+		for parent in [current] + PCSS_PATHS:
 			for ext in ("", ".pcss"):
 				path = os.path.join(parent, name + ext)
 				if os.path.exists(path):
