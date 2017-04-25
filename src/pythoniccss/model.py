@@ -768,7 +768,9 @@ class Block(Node, Named):
 				else:
 					for prefix in ps:
 						for suffix in bs:
-							r.append(prefix.copy().narrow(suffix.copy()))
+							# NOTE: Narrow already copies
+							rs = prefix.narrow(suffix.copy())
+							r.append(rs)
 			else:
 				r += bs
 			module = self.resolve("__module__")
@@ -839,7 +841,7 @@ class Selector(Leaf):
 		return self
 
 	def copy( self, deep=True ):
-		sel = Selector(self.node, self.id, self.classes, self.attributes, self.suffix)
+		sel = Selector(self.node, self.id, [] + self.classes, self.attributes, self.suffix)
 		if deep:
 			sel.next = (self.next[0], self.next[1].copy()) if self.next else None
 		else:
@@ -853,7 +855,7 @@ class Selector(Leaf):
 			tail = self
 			while tail.next:
 				tail = tail.next[1]
-			tail.next = (tail.next[0], value)
+			tail.next = (tail.next[0] if tail.next else None, value)
 			return self
 
 	def narrow( self, selector, operator=None):
@@ -863,18 +865,19 @@ class Selector(Leaf):
 		elif operator == "<":
 			return selector.narrow(self, ">")
 		else:
-			last = self.last()
-			bem_prefix = self.getBEMPrefix()
+			copy = self.copy(deep=True)
+			last = copy.last()
+			bem_prefix = copy.getBEMPrefix()
 			bem_suffix = selector.getBEMSuffix()
 			if bem_prefix and bem_suffix:
 				selector = selector.expandBEM(bem_prefix, bem_suffix)
 			if selector.node == "&":
-				assert self.node == "&" or selector.node == "&"
-				last.merge(selector)
+				assert copy.node == "&" or selector.node == "&"
+				last = copy.last(last.merge(selector))
 				last.next = selector.next
 			else:
 				last.next = (operator, selector)
-			return self
+			return copy
 
 	def prefix( self, selector ):
 		"""Returns a copy of this selector prefixed with the given selector."""
@@ -883,12 +886,13 @@ class Selector(Leaf):
 	def merge( self, selector ):
 		"""Merges the given selector with this one. This takes care of the
 		'&'."""
-		self.node        = self.node if selector.node == "&" else selector.node
-		self.id         += selector.id
-		self.classes    += selector.classes
-		self.attributes += selector.attributes
-		self.suffix     += selector.suffix
-		return self
+		copy             = self
+		copy.node        = copy.node if selector.node == "&" else selector.node
+		copy.id         += selector.id
+		copy.classes    += selector.classes
+		copy.attributes += selector.attributes
+		copy.suffix     += selector.suffix
+		return copy
 
 	def expandBEM( self, prefix, suffix ):
 		"""Expands the BEM suffix to be prefixed with the given prefix in this
