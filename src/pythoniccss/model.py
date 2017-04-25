@@ -904,7 +904,13 @@ class Selector(Leaf):
 		bem_classes = []
 		for _ in self.classes:
 			if not _: continue
-			if _.startswith("-") or _.endswith("-"):
+			is_prefix = _.startswith("-")
+			is_suffix = _.endswith("-")
+			if is_suffix:
+				bem_classes.append(_)
+				if self.suffix:
+					classes.insert(0,_[:-1])
+			elif  is_prefix:
 				bem_classes.append(_)
 			else:
 				classes.insert(0,_)

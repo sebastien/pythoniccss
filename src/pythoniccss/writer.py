@@ -230,7 +230,6 @@ class CSSWriter( object ):
 		else:
 			raise SyntaxError("Macro invocation does not resolve to a macro: {0} = {1}".format(element.name, macro))
 
-
 	def onProperty( self, element ):
 		name  = element.name
 		value = element.value
