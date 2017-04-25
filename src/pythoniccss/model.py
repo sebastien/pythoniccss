@@ -839,7 +839,10 @@ class Selector(Leaf):
 		self.id         = id
 		self.classes    = classes if isinstance(classes, list) else [_.strip() for _ in classes.split(".") if _]
 		self.attributes = attributes
-		self.suffix     = suffix
+		if suffix:
+			self.suffix = [] + suffix if isinstance(suffix, list) else [_ for _ in suffix.split(":") if _]
+		else:
+			self.suffix = []
 		self.next       = None
 		self.namespace  = None
 
@@ -848,7 +851,7 @@ class Selector(Leaf):
 		return self
 
 	def copy( self, deep=True ):
-		sel = Selector(self.node, self.id, [] + self.classes, self.attributes, self.suffix)
+		sel = Selector(self.node, self.id, [] + self.classes, self.attributes, [] + self.suffix)
 		if deep:
 			sel.next = (self.next[0], self.next[1].copy()) if self.next else None
 		else:
@@ -880,7 +883,7 @@ class Selector(Leaf):
 				selector = selector.expandBEM(bem_prefix, bem_suffix)
 			if selector.node == "&":
 				assert copy.node == "&" or selector.node == "&"
-				last = copy.last(last.merge(selector))
+				last.merge(selector)
 				last.next = selector.next
 			else:
 				last.next = (operator, selector)
@@ -892,14 +895,17 @@ class Selector(Leaf):
 
 	def merge( self, selector ):
 		"""Merges the given selector with this one. This takes care of the
-		'&'."""
-		copy             = self
-		copy.node        = copy.node if selector.node == "&" else selector.node
-		copy.id         += selector.id
-		copy.classes    += selector.classes
-		copy.attributes += selector.attributes
-		copy.suffix     += selector.suffix
-		return copy
+		'&'. NOTE: This does not return a copy"""
+		# NOTE: no copying here
+		s             = self
+		s.node        = s.node if selector.node == "&" else selector.node
+		s.id         += selector.id
+		s.classes    += selector.classes
+		s.attributes += selector.attributes
+		for _ in selector.suffix:
+			if _ not in s.suffix:
+				s.suffix.append(_)
+		return s
 
 	def expandBEM( self, prefix, suffix ):
 		"""Expands the BEM suffix to be prefixed with the given prefix in this
@@ -919,7 +925,7 @@ class Selector(Leaf):
 			is_suffix = _.endswith("-")
 			if is_suffix:
 				bem_classes.append(_)
-				if self.suffix:
+				if len(self.suffix) > 0:
 					classes.insert(0,_[:-1])
 			elif  is_prefix:
 				bem_classes.append(_)
@@ -942,7 +948,8 @@ class Selector(Leaf):
 		# And now we output the result
 		suffixes = (" ".join(_ for _ in suffixes if _)) if suffixes else ""
 		classes  = ("." + ".".join(classes)) if classes else ""
-		sel      = u"{0}{1}{2}{3}{4}".format(self.node, self.id, classes, self.attributes, self.suffix)
+		suffix   = "".join(":" + _ for _ in self.suffix)
+		sel      = u"{0}{1}{2}{3}{4}".format(self.node, self.id, classes, self.attributes, suffix)
 		res      = " ".join((_ for _ in (prefix, sel, suffixes) if _))
 		if res.endswith("&"):
 			res = res[:-1].strip() or ".__module__"
