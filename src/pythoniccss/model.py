@@ -153,9 +153,6 @@ class Element( object ):
 	def copy( self ):
 		return copy(self)
 
-	def expandMacros( self ):
-		return self
-
 	def offsets( self, match ):
 		self._offsets[0] = match.offset
 		self._offsets[1] = match.offset + match.length
@@ -306,23 +303,6 @@ class Node( Element ):
 				if like is None or isinstance(element, like):
 					return element
 		return None
-
-	def expandMacros( self ):
-		"""Returns a copy of this stylesheet that expands all the macros in them."""
-		has_macros = False
-		content    = []
-		for _ in self.content:
-			v = _.expandMacros()
-			has_macros = _ != v or has_macros
-			content.append(v)
-		if has_macros:
-			copy = self.copy()
-			copy.content = []
-			for _ in content:
-				copy.add(_)
-			return copy
-		else:
-			return self
 
 # -----------------------------------------------------------------------------
 #
@@ -680,26 +660,6 @@ class MacroInvocation( Invocation, Output ):
 		Invocation.__init__(self, name, arguments)
 		Output.__init__(self)
 
-	def expandMacros( self ):
-		if self.name == "merge" or self.name == "extend":
-			if len(self.arguments) != 1:
-				raise SemanticError(self.name + "() macro only takes one argument")
-			elif not isinstance(self.arguments[0], String):
-				raise SemanticError(self.name + "() expects a string as argument")
-			else:
-				selector = self.arguments[0].value
-				name     = selector
-				block    = self.root().findSelector(selector)
-				if block:
-					res = Block([Selector("&")])
-					for _ in block.content:
-						res.add(_.expandMacros().copy())
-					return res
-				else:
-					raise SemanticError(self.name + "(" + name + ") cannot resolve selector: " + name)
-		else:
-			raise NotImplementedError
-
 class Variable( Value, Named ):
 
 	def __init__( self, name, value, decorator=None ):
@@ -735,7 +695,7 @@ class Context( Node ):
 	"""A node that is not tied to a specific syntax but that is able
 	to declare slots that will be resolved by children."""
 
-	def __init__( self, arguments=None, parent=None):
+	def __init__( self, arguments, parent ):
 		Node.__init__(self)
 		self.slots = {}
 		for k in arguments or {}:
@@ -863,8 +823,6 @@ class Stylesheet(Node):
 		Node.__init__(self)
 		self.units    = {}
 
-
-
 # -----------------------------------------------------------------------------
 #
 # SELECTOR
@@ -917,7 +875,6 @@ class Selector(Leaf):
 		elif operator == "<":
 			return selector.narrow(self, ">")
 		else:
-			print ("NARROW", self, "WITH", selector)
 			copy = self.copy(deep=True)
 			last = copy.last()
 			bem_prefix = copy.getBEMPrefix()

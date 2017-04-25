@@ -98,7 +98,7 @@ class PCSSProcessor(Processor):
 			for _ in self.process(m):
 				dispatch(_, stack)
 		s.balance()
-		return s.offsets(match).expandMacros()
+		return s.offsets(match)
 
 	def onBlock( self, match, indent, selections, name, code ):
 		# The ordering of statements is deferred to the `onSource` rule
