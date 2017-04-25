@@ -267,6 +267,13 @@ class Node( Element ):
 		self.content = []
 		self.isNode  = True
 
+	def copy( self ):
+		c = super(Node, self).copy()
+		c.content = []
+		for _ in self.content:
+			c.add(_.copy())
+		return c
+
 	def add( self, value ):
 		if isinstance(value, tuple) or isinstance(value, list):
 			for _ in value:
