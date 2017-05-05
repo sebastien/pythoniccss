@@ -299,7 +299,7 @@ class CSSWriter( object ):
 		if element.quote: yield (element.quote)
 
 	def onURL( self, element ):
-		yield element.value
+		yield "url(" + element.value + ")"
 
 	def onKeyframes( self, element ):
 		yield ("@keyframes ")
@@ -325,7 +325,8 @@ class CSSWriter( object ):
 
 	def onImportDirective( self, element ):
 		# We don't output imports for now
-		pass
+		if isinstance(element.value, URL):
+			yield "@import url({0})".format(element.value.value)
 
 	def _findSelector( self, element, selector ):
 		s = self._selectors.get(selector) or element.root().findSelector(selector)

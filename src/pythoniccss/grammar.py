@@ -166,7 +166,7 @@ def grammar(g=None, isVerbose=False):
 
 	g.rule      ("Comment",             s.COMMENT.oneOrMore(), s.EOL)
 	g.rule      ("Include",             s.OINCLUDE, s.SPACE, s.PATH._as("path"),  s.EOL)
-	g.rule      ("Import",              s.OIMPORT,  s.SPACE, g.agroup(s.NAME, s.String, s.URL)._as("source"), s.EOL)
+	g.rule      ("Import",              s.OIMPORT,  s.SPACE, g.agroup(s.URL, s.NAME, s.String)._as("source"), s.EOL)
 	g.rule      ("Module",              s.OMODULE,  s.SPACE, s.NAME._as("name"),  s.EOL)
 	g.rule      ("Unit",                s.OUNIT,    s.SPACE, s.NAME._as("name"),  s.EQUAL, s.Expression._as("value"), s.EOL)
 	g.rule      ("Assignment",          s.CheckIndent._as("indent"), s.Variable._as("declaration"),   s.EOL)
