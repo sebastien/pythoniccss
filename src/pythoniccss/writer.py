@@ -299,7 +299,7 @@ class CSSWriter( object ):
 		if element.quote: yield (element.quote)
 
 	def onURL( self, element ):
-		yield element.value
+		yield "url(" + element.value + ")"
 
 	def onKeyframes( self, element ):
 		yield ("@keyframes ")

@@ -2,7 +2,7 @@
 from __future__ import print_function
 from libparsing import Processor, ensure_str, is_string
 from .grammar import grammar, getGrammar
-from .model   import Factory, Stylesheet, Element, Node, String, SemanticError
+from .model   import Factory, Stylesheet, Element, URL, Node, String, SemanticError
 import re, os, sys
 
 BASE = os.path.dirname(os.path.abspath(__file__))
@@ -58,13 +58,22 @@ class PCSSProcessor(Processor):
 		self.path   = path
 
 	def resolvePCSS( self, name ):
-		current = os.path.dirname(self.path) if os.path.isfile(self.path) else self.path
-		for parent in [current] + PCSS_PATHS:
-			for ext in ("", ".pcss"):
-				path = os.path.join(parent, name + ext)
-				if os.path.exists(path):
-					return path
-		return None
+		if isinstance(name, URL):
+			rp = os.path.relpath(name.value, self.path)
+			ap = os.path.abspath(name.value)
+			dp = os.path.normpath(name.value)
+			if os.path.exists(rp): return rp
+			if os.path.exists(ap): return ap
+			if os.path.exists(dp): return dp
+			return None
+		else:
+			current = os.path.dirname(self.path) if os.path.isfile(self.path) else self.path
+			for parent in [current] + PCSS_PATHS:
+				for ext in ("", ".pcss"):
+					path = os.path.join(parent, name + ext)
+					if os.path.exists(path):
+						return path
+			return False
 
 	# =========================================================================
 	# HIGH-LEVEL STRUCTURE
@@ -126,6 +135,8 @@ class PCSSProcessor(Processor):
 			result     = self.grammar.parsePath(path)
 			stylesheet = PCSSProcessor(path=path).process(result)
 			return self.F._import(source, stylesheet).offsets(match)
+		elif isinstance(source, URL):
+			pass
 		else:
 			raise SemanticError("Cannot resolve PCSS module: {0}".format(source))
 
@@ -249,7 +260,9 @@ class PCSSProcessor(Processor):
 		return self.process(match[0])
 
 	def onURL(self, match ):
-		return self.F.url(self.process(match)[0])
+		url = self.process(match)[1]
+		if url[0] == url[1] and url[0] in "\"'": url = url[1:-1]
+		return self.F.url(url)
 
 	def onCOLOR_HEX(self, match ):
 		c = (self.process(match)[1])
