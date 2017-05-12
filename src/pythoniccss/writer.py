@@ -6,7 +6,7 @@
 # License           : BSD License
 # -----------------------------------------------------------------------------
 # Creation date     : 23-Mar-2017
-# Last modification : 23-Mar-2017
+# Last modification : 12-May-2017
 # -----------------------------------------------------------------------------
 
 from __future__ import print_function
@@ -106,8 +106,6 @@ class CSSWriter( object ):
 			yield self.onFunctionInvocation(element)
 		elif isinstance(element, MethodInvocation):
 			yield self.onMethodInvocation(element)
-		elif isinstance(element, MacroInvocation):
-			yield self.onMacroInvocation(element)
 		elif isinstance(element, Property):
 			yield self.onProperty(element)
 		elif isinstance(element, Selector):
@@ -167,7 +165,7 @@ class CSSWriter( object ):
 		if has_content:
 			yield " {\n"
 			self.isOpen = True
-		for _ in element.content:
+		for _ in element.getUniqueContent():
 			yield self.on(_)
 
 	def onContext( self, element ):
@@ -190,45 +188,6 @@ class CSSWriter( object ):
 	def onMethodInvocation( self, element ):
 		for _ in self.on(element.eval()):
 			yield _
-
-	def onMacroInvocation( self, element ):
-		if element.name == "merge":
-			if len(element.arguments) != 1:
-				raise SemanticError("merge() macro only takes one argument")
-			elif not isinstance(element.arguments[0], String):
-				raise SemanticError("merge() expects a string as argument")
-			else:
-				selector = element.arguments[0].value
-				name     = selector
-				macro    = self._findSelector(element, selector)
-				if macro:
-					macro = macro.copy()
-					macro.content = [_ for _ in macro.content if not isinstance(_, Block)]
-		elif element.name == "extend":
-			if len(element.arguments) != 1:
-				raise SemanticError("extend() macro only takes one argument")
-			elif not isinstance(element.arguments[0], String):
-				raise SemanticError("extend() expects a string as argument")
-			else:
-				selector = element.arguments[0].value
-				name     = selector
-				macro    = self._findSelector(element, selector)
-		else:
-			# Macro resolves as selectors by default
-			macro = element.resolve(element.name) or self._findSelector(element, "." + element.name)
-			name  = element.name
-		if not macro:
-			raise SyntaxError("Macro {0} cannot be resolved: {1}".format(element.name, name))
-		if isinstance(macro, Macro):
-			block = macro.apply(element.arguments, element.parent())
-			for _ in self.on(block):
-				yield _
-		elif isinstance(macro, Block):
-			block = macro.apply(element.parent())
-			for _ in self.on(block):
-				yield _
-		else:
-			raise SyntaxError("Macro invocation does not resolve to a macro: {0} = {1}".format(element.name, macro))
 
 	def onProperty( self, element ):
 		name  = element.name

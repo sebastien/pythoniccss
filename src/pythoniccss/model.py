@@ -6,7 +6,7 @@
 # License           : BSD License
 # -----------------------------------------------------------------------------
 # Creation date     : 14-Jul-2013
-# Last modification : 27-Mar-2017
+# Last modification : 12-May-2017
 # -----------------------------------------------------------------------------
 
 from __future__ import print_function
@@ -175,6 +175,9 @@ class Element( object ):
 			root =  root._parent
 		return root.resolve(name)
 
+	def resolveSelector( self, name ):
+		return self.root().findSelector(selector)
+
 	def findSelector( self, selector ):
 		"""Returns the first rule that matches the given selector."""
 		if not selector:
@@ -266,6 +269,19 @@ class Node( Element ):
 		Element.__init__(self)
 		self.content = []
 		self.isNode  = True
+
+	def getUniqueContent( self ):
+		"""Filters out properties that are overriden"""
+		result     = []
+		properties = {}
+		for _ in reversed(self.content):
+			if isinstance(_, Property):
+				if _.name not in properties:
+					result.append(_)
+					properties[_.name] = True
+			else:
+				result.append(_)
+		return reversed(result)
 
 	def copy( self ):
 		c = super(Node, self).copy()
@@ -360,6 +376,10 @@ class Reference( Value ):
 		if value is None:
 			raise SemanticError("Variable `{0}` not defined in {1}".format(self.value, self.parent()))
 		return value.expand()
+
+	# FIXME: Does not work
+	# def invoke( self, name, arguments ):
+	# 	return self.value.invoke(name, arguments)
 
 	def eval( self ):
 		return self.expand().eval()
@@ -476,6 +496,10 @@ class Color( Value ):
 		else:
 			self.value = [r,g,b, self.value[3]]
 		return self
+
+	def fade( self, opacity ):
+		r,g,b,a = self.rgba()
+		return
 
 	def darken( self, k ):
 		return self.brighten(0 - k)

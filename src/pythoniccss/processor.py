@@ -2,7 +2,7 @@
 from __future__ import print_function
 from libparsing import Processor, ensure_str, is_string
 from .grammar import grammar, getGrammar
-from .model   import Factory, Stylesheet, Element, URL, Node, String, SemanticError
+from .model   import Factory, Stylesheet, Element, Macro, MacroInvocation, URL, Node, String, SemanticError
 import re, os, sys
 
 BASE = os.path.dirname(os.path.abspath(__file__))
@@ -85,6 +85,25 @@ class PCSSProcessor(Processor):
 				for _ in element.content:
 					stack[0].add(_)
 				return stack
+			elif isinstance(element, MacroInvocation):
+				if  element.name in ("merge", "extend"):
+					sel_name = element.value[0].value
+					block    = stack[0].findSelector(sel_name)
+					if not block:
+						raise SemanticError("`{0}` could not find referenced block: `{1}`".format(element.name, sel_name))
+					recursive = element.name == "extend"
+					for _ in block.content:
+						if recursive or not isinstance(_, Node):
+							dispatch(_, stack)
+				else:
+					macro = stack[0].resolve(element.name) or stack[0].findSelector("." + element.name)
+					if isinstance(macro, Macro):
+						block = macro.apply(element.arguments, element.parent())
+						dispatch(block, stack)
+					elif macro:
+						raise SemanticError("`{0}` does not resolve `{1}` to macro, got {2}".format(element.name, element.name, macro))
+					else:
+						raise SemanticError("`{0}` could not find referenced block: `{1}`".format(element.name, element.name))
 			elif isinstance(element, Element):
 				if element._indent is not None:
 					while stack and stack[-1]._indent >= element._indent:
