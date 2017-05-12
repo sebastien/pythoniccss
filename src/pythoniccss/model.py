@@ -201,7 +201,7 @@ class Element( object ):
 		return None
 
 	def invoke( self, name, arguments ):
-		raise SemanticError("{0} does not respond to method {1}".format(self, name))
+		raise SemanticError("{0} does not respond to method `{1}`".format(self, name))
 
 	def root( self ):
 		if self._parent:
@@ -479,16 +479,19 @@ class Number( Value ):
 class Color( Value ):
 
 	def invoke( self, name, arguments ):
+		arguments = arguments or ()
 		if name == "brighten":
 			return self.brighten(*arguments)
 		elif name == "darken":
 			return self.darken(*arguments)
 		elif name == "blend":
 			return self.blend(*arguments)
+		elif name == "fade":
+			return self.fade(*arguments)
 		else:
 			return super(Color, self).invoke(name, arguments)
 
-	def brighten( self, k ):
+	def brighten( self, k=0.1 ):
 		h,l,s = colorsys.rgb_to_hls(self.value[0], self.value[1], self.value[2])
 		r,g,b = colorsys.hls_to_rgb(h, l + k, s)
 		if len(self.value) == 3:
@@ -497,11 +500,12 @@ class Color( Value ):
 			self.value = [r,g,b, self.value[3]]
 		return self
 
-	def fade( self, opacity ):
+	def fade( self, k=0.1 ):
+		"""Fades the color by multiplying `A` by `1-k`."""
 		r,g,b,a = self.rgba()
-		return
+		return RGBA((r,g,b,min(1.0,max(0,a - a*k))))
 
-	def darken( self, k ):
+	def darken( self, k=0.1 ):
 		return self.brighten(0 - k)
 
 	def blend( self, color, k):
@@ -543,7 +547,6 @@ class Color( Value ):
 
 class RGB( Color ):
 	pass
-
 
 class RGBA( Color ):
 	pass
