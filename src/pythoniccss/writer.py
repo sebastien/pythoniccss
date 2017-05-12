@@ -14,7 +14,6 @@ import sys
 
 from .model import *
 
-
 PREFIXABLE_PROPERTIES = (
 	"animation",
 	"border-radius",
@@ -93,6 +92,8 @@ class CSSWriter( object ):
 		elif isinstance(element, ImportDirective):
 			yield self.onImportDirective(element)
 		elif isinstance(element, Macro):
+			pass
+		elif isinstance(element, MacroInvocation):
 			pass
 		elif isinstance(element, Unit):
 			pass

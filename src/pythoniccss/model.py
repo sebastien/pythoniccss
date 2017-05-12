@@ -151,7 +151,7 @@ class Element( object ):
 		self._offsets = [None, None]
 
 	def copy( self ):
-		return copy(self)
+		return self.__class__()
 
 	def offsets( self, match ):
 		self._offsets[0] = match.offset
@@ -263,7 +263,16 @@ class Leaf( Element ):
 				if isinstance(_, Element):
 					_.parent(self)
 
+	def copy( self ):
+		return self.__class__(self.value)
+
 class Node( Element ):
+
+	@classmethod
+	def CopyContent( cls, src, dst ):
+		for _ in src.content:
+			dst.add(_.copy())
+		return dst
 
 	def __init__( self ):
 		Element.__init__(self)
@@ -284,7 +293,7 @@ class Node( Element ):
 		return reversed(result)
 
 	def copy( self ):
-		c = super(Node, self).copy()
+		c = self.__class__()
 		c.content = []
 		for _ in self.content:
 			c.add(_.copy())
@@ -396,6 +405,9 @@ class String( Value ):
 		Leaf.__init__(self, value)
 		self.quote = quote
 
+	def copy( self ):
+		return self.__class__(self.value, self.quote)
+
 class Number( Value ):
 
 	def __init__( self, value, unit=None ):
@@ -403,6 +415,9 @@ class Number( Value ):
 		self.unit  = unit
 		self._isDirty = True
 		self._evaluated = None
+
+	def copy( self ):
+		return self.__class__(self.value, self.unit)
 
 	def write( self, stream=sys.stdout):
 		stream.write(str(self.value))
@@ -559,6 +574,9 @@ class List( Leaf, Output ):
 		Output.__init__(self)
 		self.separator = separator
 
+	def copy( self ):
+		return self.__class__(self.value, self.separator)
+
 	def unwrap( self ):
 		"""Unwraps the list if it has only one element"""
 		if self.value and len(self.value) == 1:
@@ -581,6 +599,9 @@ class Computation( Value ):
 		self._rvalue  = None
 		self.lvalue(lvalue)
 		self.rvalue(rvalue)
+
+	def copy( self ):
+		return self.__class__(self.operator, self._lvalue, self._rvalue)
 
 	def lvalue( self, value=NOTHING ):
 		if value is NOTHING:
@@ -633,8 +654,7 @@ class Comment( Leaf ):
 
 class Directive( Leaf):
 
-	def apply( self, context ):
-		raise NotImplementedError
+	pass
 
 class ModuleDirective( Directive, Named ):
 
@@ -642,14 +662,14 @@ class ModuleDirective( Directive, Named ):
 		Directive.__init__(self, value)
 		Named.__init__(self, "__module__")
 
-	def apply( self, context ):
-		context.set("__module__", self.value)
-
 class ImportDirective( Directive ):
 
 	def __init__( self, value, stylesheet ):
 		Directive.__init__(self, value)
 		self.stylesheet = stylesheet
+
+	def copy( self ):
+		return self.__class__(self.value, self.stylesheet)
 
 class Unit( Directive, Named) :
 
@@ -660,12 +680,18 @@ class Unit( Directive, Named) :
 	def eval( self ):
 		return self.value.eval()
 
+	def copy( self ):
+		return self.__class__(self.name, self.value)
+
 class Invocation( Directive ):
 
 	def __init__( self, name, arguments):
 		Directive.__init__(self, arguments)
 		self.name     = name
 		self.arguments = arguments
+
+	def copy( self ):
+		return self.__class__(self.name, self.arguments)
 
 class FunctionInvocation( Invocation ):
 
@@ -676,7 +702,10 @@ class MethodInvocation( Invocation):
 
 	def __init__( self, name, arguments, target=None):
 		Invocation.__init__(self, name, arguments)
-		self.target    = None
+		self.target = target
+
+	def copy( self ):
+		return MethodInvocation(self.name, self.arguments, self.target)
 
 	def eval( self ):
 		return self.target.invoke(self.name, self.arguments)
@@ -697,6 +726,9 @@ class Variable( Value, Named ):
 	def eval( self ):
 		return self.value.eval()
 
+	def copy( self ):
+		return self.__class__(self.name, self.value, self.decorator)
+
 	def expand( self ):
 		return self.value
 
@@ -708,6 +740,8 @@ class Property( Leaf, Output ):
 		self.name  = name
 		self.important = important
 
+	def copy( self ):
+		return self.__class__(self.name, self.value, self.important)
 
 	def __repr__( self ):
 		return "<Property {0}={1} at {2}>".format(self.name, self.value, id(self))
@@ -718,16 +752,20 @@ class Property( Leaf, Output ):
 #
 # -----------------------------------------------------------------------------
 
-class Context( Node ):
+class Context( Node, Output ):
 	"""A node that is not tied to a specific syntax but that is able
 	to declare slots that will be resolved by children."""
 
-	def __init__( self, arguments, parent ):
+	def __init__( self, arguments, name ):
 		Node.__init__(self)
+		self.name  = name
+		self._indent = 0
 		self.slots = {}
 		for k in arguments or {}:
 			self.set(k, arguments[k])
-		self.parent(parent)
+
+	def copy( self ):
+		return Node.CopyContent(self, self.__class__(self.arguments, self.name))
 
 	def set( self, name, value):
 		self.slots[name] = value
@@ -747,6 +785,9 @@ class Context( Node ):
 		else:
 			return super(Node, self).resolve(name)
 
+	def __repr__( self ):
+		return "<Context for `{0}` at {1}>".format(self.name, id(self))
+
 class Block(Node, Named):
 
 	def __init__( self, selections=None, name=None ):
@@ -759,11 +800,9 @@ class Block(Node, Named):
 		if selections:
 			self.select(selections)
 
-	def apply( self, parent ):
-		# NOTE: This has the side-effect of the new block "borrowing" the
-		# content. In theory, we should deep-copy the content, but it's
-		# OK like that as we're not multi-threading.
-		return Context((), parent).add([_.copy() for _ in self.content])
+	def copy( self ):
+		r = self.__class__([]+self.selections, self.name)
+		return Node.CopyContent(self, r)
 
 	def select( self, selection ):
 		if isinstance(selection, tuple) or isinstance(selection, list):
@@ -822,21 +861,29 @@ class Macro( Node, Named ):
 
 	def __init__( self, name, parameters=None ):
 		Node.__init__(self)
+		self._indent = 0
 		Named.__init__(self, name)
 		self.parameters = parameters
 
-	def apply( self, arguments, parent ):
+	def copy( self ):
+		return Node.CopyContent(self, self.__class__(self.name, self.parameters))
+
+	def apply( self, arguments ):
 		# NOTE: This has the side-effect of the new block "borrowing" the
 		# content. In theory, we should deep-copy the content, but it's
 		# OK like that as we're not multi-threading.
-		args = dict((k,arguments[i]) for i,k in enumerate(self.parameters) if i < len(arguments)) if arguments else {}
-		return Context(args, parent).add(self.content)
+		args    = dict((k,arguments[i]) for i,k in enumerate(self.parameters) if i < len(arguments)) if arguments else {}
+		context = Context(args, self.name)
+		return context
 
 class Keyframes( Node, Named ):
 
 	def __init__( self, name ):
 		Node.__init__(self)
 		Named.__init__(self, name)
+
+	def copy( self ):
+		return Node.CopyContent(self, self.__class__(self.name))
 
 class Keyframe( Node ):
 

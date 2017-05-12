@@ -2,7 +2,7 @@
 from __future__ import print_function
 from libparsing import Processor, ensure_str, is_string
 from .grammar import grammar, getGrammar
-from .model   import Factory, Stylesheet, Element, Macro, MacroInvocation, URL, Node, String, SemanticError
+from .model   import Factory, Stylesheet, Element, Block, Macro, MacroInvocation, URL, Node, String, SemanticError
 import re, os, sys
 
 BASE = os.path.dirname(os.path.abspath(__file__))
@@ -80,33 +80,59 @@ class PCSSProcessor(Processor):
 	# =========================================================================
 
 	def onSource( self, match ):
-		def dispatch( element, stack ):
+		def dispatch( element, stack, guard=None ):
+			"""Processes the given element so that it is added to the matching
+			parent in the stack. If `guard` is given, then the stack is not
+			unwinded past `guard`."""
 			if isinstance(element, Stylesheet):
+				# Stylesheets are added as direct children of the root
+				# (which happens to be a stylesheet)
 				for _ in element.content:
 					stack[0].add(_)
 				return stack
 			elif isinstance(element, MacroInvocation):
+				# When we register a macro invocation we look for defined
+				# blocks and expand them
 				if  element.name in ("merge", "extend"):
 					sel_name = element.value[0].value
 					block    = stack[0].findSelector(sel_name)
 					if not block:
 						raise SemanticError("`{0}` could not find referenced block: `{1}`".format(element.name, sel_name))
 					recursive = element.name == "extend"
+					# Like macros, we make sure the stack is not unwound past
+					# the head.
+					head      = stack[-1]
+					substack  = stack
 					for _ in block.content:
 						if recursive or not isinstance(_, Node):
-							dispatch(_, stack)
+							substack = dispatch(_.copy(), substack, head)
 				else:
 					macro = stack[0].resolve(element.name) or stack[0].findSelector("." + element.name)
+					stack[-1].add(element)
 					if isinstance(macro, Macro):
-						block = macro.apply(element.arguments, element.parent())
-						dispatch(block, stack)
+						context = macro.apply(element.arguments)
+						# We need to preserve the stack and make sure the
+						# dispatching does not unwind past the context
+						stack[-1].add(context)
+						substack = stack + [context]
+						# For macros,
+						for _ in macro.content:
+							_ = _.copy().parent(context)
+							substack = dispatch(_, substack, context)
 					elif macro:
 						raise SemanticError("`{0}` does not resolve `{1}` to macro, got {2}".format(element.name, element.name, macro))
 					else:
-						raise SemanticError("`{0}` could not find referenced block: `{1}`".format(element.name, element.name))
+						raise SemanticError("`{0}()` could not find macro: `{1}`".format(element.name, element.name))
+			elif isinstance(element, Macro):
+				# Macros are toplevel, so we don't need to take indentation into
+				# account.
+				while len(stack) > 1: stack.pop()
+				stack[0].add(element)
+				stack.append(element)
+				return stack
 			elif isinstance(element, Element):
 				if element._indent is not None:
-					while stack and stack[-1]._indent >= element._indent:
+					while stack and stack[-1]._indent >= element._indent and stack[-1] != guard:
 						stack.pop()
 					assert stack
 				stack[-1].add(element)
