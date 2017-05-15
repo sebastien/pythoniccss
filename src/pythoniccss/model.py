@@ -765,7 +765,7 @@ class Context( Node, Output ):
 			self.set(k, arguments[k])
 
 	def copy( self ):
-		return Node.CopyContent(self, self.__class__(self.arguments, self.name))
+		return Node.CopyContent(self, self.__class__(self.slots, self.name))
 
 	def set( self, name, value):
 		self.slots[name] = value
