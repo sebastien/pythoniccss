@@ -949,8 +949,8 @@ class Selector(Leaf):
 		elif operator == "<":
 			return selector.narrow(self, ">")
 		else:
-			copy = self.copy(deep=True)
-			last = copy.last()
+			copy       = self.copy(deep=True)
+			last       = copy.last()
 			bem_prefix = copy.getBEMPrefix()
 			bem_suffix = selector.getBEMSuffix()
 			if bem_prefix and bem_suffix:
@@ -958,6 +958,8 @@ class Selector(Leaf):
 			if selector.node == "&":
 				assert copy.node == "&" or selector.node == "&"
 				last.merge(selector)
+				# NOTE: We don't need to copy the selector.next as we won't change
+				# it
 				last.next = selector.next
 			else:
 				last.next = (operator, selector)
@@ -995,13 +997,14 @@ class Selector(Leaf):
 		bem_classes = []
 		for _ in self.classes:
 			if not _: continue
-			is_prefix = _.startswith("-")
-			is_suffix = _.endswith("-")
-			if is_suffix:
+			is_suffix = _.startswith("-")
+			is_prefix = _.endswith("-")
+			if is_prefix:
 				bem_classes.append(_)
-				if len(self.suffix) > 0:
+				# If there is an attribute selector, we keep the prefix
+				if len(self.suffix) > 0 or self.attributes:
 					classes.insert(0,_[:-1])
-			elif  is_prefix:
+			elif  is_suffix:
 				bem_classes.append(_)
 			else:
 				classes.insert(0,_)
@@ -1021,7 +1024,7 @@ class Selector(Leaf):
 			classes = [self._stripBEM(_) for _ in bem_classes] + classes
 		# And now we output the result
 		suffixes = (" ".join(_ for _ in suffixes if _)) if suffixes else ""
-		classes  = ("." + ".".join(classes)) if classes else ""
+		classes  = ("." + ".".join(set(classes))) if classes else ""
 		suffix   = "".join(":" + _ for _ in self.suffix)
 		sel      = u"{0}{1}{2}{3}{4}".format(self.node, self.id, classes, self.attributes, suffix)
 		res      = " ".join((_ for _ in (prefix, sel, suffixes) if _))
