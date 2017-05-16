@@ -58,6 +58,8 @@ class PCSSProcessor(Processor):
 		self.path   = path
 
 	def resolvePCSS( self, name ):
+		"""Resolves the PCSS file with the given name, or by URL if
+		name is @model.URL instance."""
 		if isinstance(name, URL):
 			rp = os.path.relpath(name.value, self.path)
 			ap = os.path.abspath(name.value)
@@ -80,6 +82,7 @@ class PCSSProcessor(Processor):
 	# =========================================================================
 
 	def onSource( self, match ):
+		"""Regroups the lines of the stylesheet based on their indentation."""
 		def dispatch( element, stack, guard=None ):
 			"""Processes the given element so that it is added to the matching
 			parent in the stack. If `guard` is given, then the stack is not
@@ -102,7 +105,8 @@ class PCSSProcessor(Processor):
 					# Like macros, we make sure the stack is not unwound past
 					# the head.
 					head      = stack[-1]
-					substack  = stack
+					# It's important to have a copy of the stack here
+					substack  = [] + stack
 					for _ in block.content:
 						if recursive or not isinstance(_, Node):
 							substack = dispatch(_.copy(), substack, head)
