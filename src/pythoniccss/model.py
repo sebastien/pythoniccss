@@ -494,7 +494,8 @@ class Number( Value ):
 class Color( Value ):
 
 	def invoke( self, name, arguments ):
-		arguments = arguments or ()
+		# FIXME: This is a bit of a hack
+		arguments = [_.value if isinstance(_, Number) else _ for _ in arguments or ()]
 		if name == "brighten":
 			return self.brighten(*arguments)
 		elif name == "darken":
@@ -953,8 +954,26 @@ class Selector(Leaf):
 			last       = copy.last()
 			bem_prefix = copy.getBEMPrefix()
 			bem_suffix = selector.getBEMSuffix()
-			if bem_prefix and bem_suffix:
-				selector = selector.expandBEM(bem_prefix, bem_suffix)
+			if bem_prefix:
+				# OK, so this conditional requires some explanation: if we narrow
+				# the current selector and the current selector has a BEM prefix,
+				# we have the following cases:
+				#
+				# 1) The new selector has a BEM PREFIX
+				#    `.XXX- -YYY`
+				#
+				# 2) The new selector has no BEM prefix
+				#    `.XXX- .YYY` or has a node `.-XXX div`.
+				#
+				# In case (2) we need to use `.XXX` as a full class prefix,
+				# but only if it does not already appear in the last selector (
+				# selectors should have their BEM classes expanded at this stage).
+				# However, or if copy == last, which means we're directly narrowing
+				# the current selector (not its tail).
+				if bem_suffix:
+					selector = selector.expandBEM(bem_prefix, bem_suffix)
+				elif selector.node != "&" and selector.node and (last == copy or not last.hasBEMPrefix(bem_prefix)):
+					last.classes.append(bem_prefix[:-1])
 			if selector.node == "&":
 				assert copy.node == "&" or selector.node == "&"
 				last.merge(selector)
@@ -987,9 +1006,23 @@ class Selector(Leaf):
 		"""Expands the BEM suffix to be prefixed with the given prefix in this
 		selector and its children."""
 		res         = self.copy(False)
-		res.classes = [prefix + _[1:] if _ and _[0] == "-" else _ for _ in self.classes]
+		if self.classes:
+			res.classes = [prefix + _[1:] if _ and _[0] == "-" else _ for _ in self.classes]
+		elif prefix and (self.node or self.attributes or self.id):
+			# When there is no classes, we add the prefix
+			res.classes = [prefix]
 		res.next    = (res.next[0], res.next[1].expandBEM(prefix, suffix)) if res.next else None
 		return res
+
+	def hasBEMSuffixes( self ):
+		for _ in self.classes:
+			if _.startswith("-"): return True
+		return False
+
+	def hasBEMPrefix( self, prefix ):
+		for _ in self.classes:
+			if _.startswith(prefix) or _.startswith("-"): return True
+		return False
 
 	# FIXME: This should be cached as it can be quite expensive to construct
 	def expr( self, single=False, namespace=True ):
@@ -1001,7 +1034,7 @@ class Selector(Leaf):
 			is_prefix = _.endswith("-")
 			if is_prefix:
 				bem_classes.append(_)
-				# If there is an attribute selector, we keep the prefix
+				# If there is an attribute selector or a next selector with no BEM suffix
 				if len(self.suffix) > 0 or self.attributes:
 					classes.insert(0,_[:-1])
 			elif  is_suffix:
