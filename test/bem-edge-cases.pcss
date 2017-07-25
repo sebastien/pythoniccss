@@ -1,0 +1,70 @@
+# @expects
+# .cells-Introspector table {
+#   padding: 0px;
+# }
+# 
+# .button-label {
+#   padding: 0px;
+# }
+# 
+# .checkbox {
+#   user-select: none;
+#   -moz-user-select: none;
+#   -webkit-user-select: none;
+#   -o-user-select: none;
+#   -ms-user-select: none;
+# }
+# 
+# .checkbox-icon {
+#   display: inline-block;
+# }
+# 
+# .checkbox-icon:before,
+# .checkbox-icon:after {
+#   content: "";
+# }
+# 
+# .ProjectStructure {
+#   min-width: 318dp;
+# }
+# 
+# .ProjectStructure-footer {
+#   display: none;
+#   height: auto;
+# }
+# 
+# .ProjectStructure-footer .ProjectStructure-button span {
+#   pointer-events: none;
+# }
+# 
+# .ProjectStructure-footer .ProjectStructure-button:nth-child(2) {
+#   margin-right: 1.3em;
+# }
+# ---
+.cells-Introspector-
+	table:
+		padding: 0px
+
+.button-
+	.-label:
+		padding: 0px
+
+		
+.checkbox-:
+	user-select: none
+	.-icon:
+		display: inline-block
+		&:before, &:after:
+			content: ""
+
+
+.ProjectStructure-
+	min-width: 318dp
+	.-footer
+		display: none
+		height: auto
+		.-button:
+			span:
+				pointer-events: none
+			&:nth-child(2)
+				margin-right: 1.3em
