@@ -973,7 +973,8 @@ class Selector(Leaf):
 				if bem_suffix:
 					selector = selector.expandBEM(bem_prefix, bem_suffix)
 				elif selector.node != "&" and selector.node and (last == copy or not last.hasBEMPrefix(bem_prefix)):
-					last.classes.append(bem_prefix[:-1])
+					#if len([_.hasBEMPrefix(bem_prefix) for _ in self.children()]) == 0:
+					copy.classes.append(bem_prefix[0:-1])
 			if selector.node == "&":
 				assert copy.node == "&" or selector.node == "&"
 				last.merge(selector)
@@ -1014,12 +1015,7 @@ class Selector(Leaf):
 		res.next    = (res.next[0], res.next[1].expandBEM(prefix, suffix)) if res.next else None
 		return res
 
-	def hasBEMSuffixes( self ):
-		for _ in self.classes:
-			if _.startswith("-"): return True
-		return False
-
-	def hasBEMPrefix( self, prefix ):
+	def hasBEMPrefix( self, prefix="-" ):
 		for _ in self.classes:
 			if _.startswith(prefix) or _.startswith("-"): return True
 		return False
@@ -1102,6 +1098,12 @@ class Selector(Leaf):
 
 	def isBEM( self ):
 		return self.isBEMPrefix() or self.isBEMSuffix()
+
+	def children( self ):
+		sel = self
+		while sel and sel.next:
+			sel, n = sel.next
+			yield n
 
 	def __repr__( self ):
 		return "<Selector `{0}` at {1}>".format(self.expr(), id(self))
