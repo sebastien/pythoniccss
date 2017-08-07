@@ -185,7 +185,7 @@ class PCSSProcessor(Processor):
 			stylesheet = PCSSProcessor(path=path).process(result)
 			return self.F._import(source, stylesheet).offsets(match)
 		elif isinstance(source, URL):
-			pass
+			return self.F._import(source, None).offsets(match)
 		else:
 			raise SemanticError("Cannot resolve PCSS module: {0}".format(source))
 
