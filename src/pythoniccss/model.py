@@ -1044,9 +1044,13 @@ class Selector(Leaf):
 			prefix = ".use-{0}".format(self.namespace)
 		# We add the suffixes
 		if not single and self.next:
+			# In this case the selector has a next selector
 			op, sel = self.next
 			if op and op != " ":
 				suffixes.append(op)
+			# We add the BEM classes that are not contained in the next selector
+			bem_to_add = [_ for _ in bem_classes if not sel.hasBEMPrefix(_)]
+			classes += [self._stripBEM(_) for _ in bem_to_add]
 			suffixes.append(sel.expr(namespace=False))
 		else:
 			# BEM classes are always first
