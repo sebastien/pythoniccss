@@ -69,6 +69,7 @@ class PCSSProcessor(Processor):
 			if os.path.exists(dp): return dp
 			return None
 		else:
+			name = name.value if isinstance(name,String) else name
 			current = os.path.dirname(self.path) if os.path.isfile(self.path) else self.path
 			for parent in [current] + PCSS_PATHS:
 				for ext in ("", ".pcss"):
@@ -179,11 +180,13 @@ class PCSSProcessor(Processor):
 
 	def onImport( self, match, source ):
 		source = source[0]
+		source = source.value if isinstance(source,String) else source
 		path   = self.resolvePCSS(source)
 		if path:
 			result     = self.grammar.parsePath(path)
 			stylesheet = PCSSProcessor(path=path).process(result)
-			return self.F._import(source, stylesheet).offsets(match)
+			relpath    = os.path.relpath(path ,os.path.dirname(self.path))
+			return self.F._import(source, stylesheet, relpath).offsets(match)
 		elif isinstance(source, URL):
 			return self.F._import(source, None).offsets(match)
 		else:

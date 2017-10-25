@@ -285,8 +285,15 @@ class CSSWriter( object ):
 
 	def onImportDirective( self, element ):
 		# We don't output imports for now
-		if isinstance(element.value, URL):
-			yield "@import url({0});".format(element.value.value)
+		path   = element.path
+		source = element.value
+		if not path:
+			if isinstance(url, URL):
+				path = source.value
+			elif isinstance(url, String):
+				path = source.value
+		if path:
+			yield "@import url({0});".format(path)
 
 	def _findSelector( self, element, selector ):
 		s = self._selectors.get(selector) or element.root().findSelector(selector)

@@ -121,8 +121,8 @@ class Factory(object):
 	def unit( self, name, value ):
 		return Unit(name, value)
 
-	def _import( self, source, stylesheet):
-		return ImportDirective(source, stylesheet)
+	def _import( self, source, stylesheet, path=None):
+		return ImportDirective(source, stylesheet, path)
 
 # -----------------------------------------------------------------------------
 #
@@ -665,9 +665,10 @@ class ModuleDirective( Directive, Named ):
 
 class ImportDirective( Directive ):
 
-	def __init__( self, value, stylesheet ):
+	def __init__( self, value, stylesheet, path=None ):
 		Directive.__init__(self, value)
 		self.stylesheet = stylesheet
+		self.path       = path
 
 	def copy( self ):
 		return self.__class__(self.value, self.stylesheet)
