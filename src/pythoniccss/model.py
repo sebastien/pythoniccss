@@ -1061,6 +1061,14 @@ class Selector(Leaf):
 		classes  = ("." + ".".join(set(classes))) if classes else ""
 		suffix   = "".join(":" + _ for _ in self.suffix)
 		sel      = u"{0}{1}{2}{3}{4}".format(self.node, self.id, classes, self.attributes, suffix)
+		# In the case where we have a module definition an & rule as a direct
+		# child, we remove the & and make it relative to the module, otherwise
+		# it defaults to `*`.
+		if sel and sel[0] == "&" and self.node == "&" and not self.id:
+			if prefix:
+				sel = sel[1:]
+			else:
+				sel = "*" + sel[1:]
 		res      = " ".join((_ for _ in (prefix, sel, suffixes) if _))
 		if res.endswith("&"):
 			res = res[:-1].strip() or ".__module__"
