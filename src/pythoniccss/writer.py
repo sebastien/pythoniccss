@@ -288,9 +288,9 @@ class CSSWriter( object ):
 		path   = element.path
 		source = element.value
 		if not path:
-			if isinstance(url, URL):
+			if isinstance(source, URL):
 				path = source.value
-			elif isinstance(url, String):
+			elif isinstance(source, String):
 				path = source.value
 		if path:
 			yield "@import url({0});".format(path)
