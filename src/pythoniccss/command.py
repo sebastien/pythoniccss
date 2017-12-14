@@ -63,7 +63,7 @@ def run(args):
 		sys.stderr.write(USAGE + "\n")
 	output = sys.stdout
 	g = getGrammar(isVerbose=args.verbose)
-	if args.output: output = open(args.output, "w")
+	if args.output: output = open(args.output, "wb")
 	g.prepare()
 	p = PCSSProcessor(grammar=g)
 	for path in args.files:

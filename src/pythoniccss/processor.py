@@ -137,7 +137,7 @@ class PCSSProcessor(Processor):
 				return stack
 			elif isinstance(element, Element):
 				if element._indent is not None:
-					while stack and stack[-1]._indent >= element._indent and stack[-1] != guard:
+					while stack and stack[-1]._indent != None and stack[-1]._indent >= element._indent and stack[-1] != guard:
 						stack.pop()
 					assert stack
 				stack[-1].add(element)

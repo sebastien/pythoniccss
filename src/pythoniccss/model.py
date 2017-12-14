@@ -145,9 +145,9 @@ class Output:
 class Element( object ):
 
 	def __init__( self ):
-		self._indent = None
-		self._parent = None
-		self.isNode  = False
+		self._indent  = None
+		self._parent  = None
+		self.isNode   = False
 		self._offsets = [None, None]
 
 	def copy( self ):

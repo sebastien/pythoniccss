@@ -10,7 +10,9 @@
 # -----------------------------------------------------------------------------
 
 from __future__ import print_function
-import sys
+import sys, types, io
+
+IS_PYTHON3 = sys.version_info.major >= 3
 
 from .model import *
 
@@ -76,13 +78,40 @@ class CSSWriter( object ):
 		self.output.flush()
 
 	def _write( self, value ):
-		if isinstance(value, unicode):
-			self.output.write(value.encode("utf8"))
-		elif isinstance(value, str):
+		# NOTE: In Python2 and Python3 sys.std{out,err} don't have the same
+		# type. They're binary/str in Python2 and unicode/str in Python3
+		if isinstance(self.output, io.TextIOBase):
+			self._writeUnicode(value)
+		else:
+			self._writeBinary(value)
+
+	def _writeUnicode( self, value ):
+		if isinstance(value, types.GeneratorType) or isinstance(value, list) or isinstance(value, tuple):
+			for _ in value: self._writeUnicode(_)
+		elif IS_PYTHON3 and isinstance(value, str):
+			self.output.write(value)
+		elif not IS_PYTHON3 and isinstance(value, unicode):
+			self.output.write(value)
+		elif isinstance(value, bytes):
+			self.output.write(value.decode("utf-8"))
+		elif not IS_PYTHON3 and isinstance(value, str):
+			self.output.write(value.decode("utf-8"))
+		elif value:
+			raise ValueError("Does not know how to write value: `{0}`".format(repr(value)))
+
+	def _writeBinary( self, value ):
+		if isinstance(value, types.GeneratorType) or isinstance(value, list) or isinstance(value, tuple):
+			for _ in value: self._writeBinary(_)
+		elif IS_PYTHON3 and isinstance(value, str):
+			self.output.write(value.encode("utf-8"))
+		elif not IS_PYTHON3 and isinstance(value, unicode):
+			self.output.write(value.encode("utf-8"))
+		elif isinstance(value, bytes):
+			self.output.write(value)
+		elif not IS_PYTHON3 and isinstance(value, str):
 			self.output.write(value)
 		elif value:
-			for _ in value:
-				self._write(_)
+			raise ValueError("Does not know how to write value: `{0}`".format(repr(value)))
 
 	def on( self, element ):
 		if isinstance(element, Comment):
