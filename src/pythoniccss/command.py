@@ -26,12 +26,12 @@ def parse(path, convert=True):
 	res = getGrammar().parsePath(path)
 	return processResult(res, path) if convert else res
 
-def parseString(text, convert=True):
+def parseString(text, path=None, convert=True):
 	res = getGrammar().parseString(text)
-	return processResult(res) if convert else res
+	return processResult(res, path=path) if convert else res
 
 def processResult( result, path=None ):
-	if result.status == "S":
+	if result.isSuccess:
 		s = BytesIO()
 		p = PCSSProcessor(path=path)
 		m = p.process(result.match)

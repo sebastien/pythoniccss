@@ -20,7 +20,7 @@ engine <http://github.com/sebastien/parsing>, which sadly has an important
 performance penalty, but offers greated easy of development/update.
 """
 
-process = lambda _:parseString(_, True)
+process = lambda text,path=None:parseString(text, path, True)
 
 if __name__ == "__main__":
 	import sys
