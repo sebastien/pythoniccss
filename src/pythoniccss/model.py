@@ -176,7 +176,7 @@ class Element( object ):
 		return root.resolve(name)
 
 	def resolveSelector( self, name ):
-		return self.root().findSelector(selector)
+		return (self.root() or self).findSelector(selector)
 
 	def findSelector( self, selector ):
 		"""Returns the first rule that matches the given selector."""
@@ -196,8 +196,9 @@ class Element( object ):
 				if s: return s
 		# We resolve in imports as well
 		for _ in reversed(imports):
-			s = _.stylesheet.findSelector(selector)
-			if s: return s
+			if _.stylesheet:
+				s = _.stylesheet.findSelector(selector)
+				if s: return s
 		return None
 
 	def invoke( self, name, arguments ):

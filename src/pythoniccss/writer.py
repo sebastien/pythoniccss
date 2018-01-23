@@ -18,6 +18,7 @@ from .model import *
 
 PREFIXABLE_PROPERTIES = (
 	"animation",
+	"appearance",
 	"border-radius",
 	"box",
 	"box-align",
