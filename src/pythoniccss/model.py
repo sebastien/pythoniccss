@@ -1070,7 +1070,15 @@ class Selector(Leaf):
 				sel = sel[1:]
 			else:
 				sel = "*" + sel[1:]
-		res      = " ".join((_ for _ in (prefix, sel, suffixes) if _))
+		# This supports the special case where we have a  `&[data-XXX]` as a root
+		res = prefix
+		if sel:
+			if sel[0] == "[":
+				res += sel
+			else:
+				res += " " + sel
+		if suffixes:
+			res += " " + suffixes
 		if res.endswith("&"):
 			res = res[:-1].strip() or ".__module__"
 		return res
