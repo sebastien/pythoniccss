@@ -175,9 +175,6 @@ class Element( object ):
 			root =  root._parent
 		return root.resolve(name)
 
-	def resolveSelector( self, name ):
-		return (self.root() or self).findSelector(selector)
-
 	def findSelector( self, selector ):
 		"""Returns the first rule that matches the given selector."""
 		if not selector:
@@ -1076,9 +1073,9 @@ class Selector(Leaf):
 			if sel[0] == "[":
 				res += sel
 			else:
-				res += " " + sel
+				res += (" " if res else "") + sel
 		if suffixes:
-			res += " " + suffixes
+			res += (" " if res else "") + suffixes
 		if res.endswith("&"):
 			res = res[:-1].strip() or ".__module__"
 		return res
