@@ -106,7 +106,7 @@ def grammar(g=None, isVerbose=False):
 	g.token   ("COLOR_HEX",        "\#([A-Fa-f0-9][A-Fa-f0-9]?[A-Fa-f0-9]?[A-Fa-f0-9]?[A-Fa-f0-9]?[A-Fa-f0-9]?([A-Fa-f0-9][A-Fa-f0-9])?)")
 	g.token   ("COLOR_RGB",        "rgba?\((\s*\d+\s*,\s*\d+\s*,\s*\d+\s*(,\s*\d+(\.\d+)?\s*)?)\)")
 	g.token   ("URL",              "url\((\"[^\"]*\"|\'[^\']*\'|[^\)]*)\)")
-	g.token   ("CSS_PROPERTY",    "[\-a-z][\-a-z0-9]*")
+	g.token   ("CSS_PROPERTY",    "[\-_a-z][\-_a-z0-9]*")
 
 	# =========================================================================
 	# INDENTATION
@@ -130,6 +130,7 @@ def grammar(g=None, isVerbose=False):
 	# =========================================================================
 
 	g.group     ("Suffix")
+	# TODO: We should prevent skipping
 	g.rule      ("Number",           s.NUMBER._as("value"), s.UNIT.optional()._as("unit"))
 	# TODO: Add RawString
 	g.group     ("String",           s.STRING_BQ, s.STRING_SQ, s.STRING_DQ, s.STRING_UQ)
