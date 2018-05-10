@@ -908,8 +908,10 @@ class Stylesheet(Node):
 	def resolve( self, name ):
 		v = Node.resolve(self, name)
 		if not v:
-			for stylesheet in (_.stylesheet for _ in self.content if (isinstance(_, ImportDirective) or isinstance(_, UseDirective)) and _.stylesheet):
-				return stylesheet.resolve(name)
+			for stylesheet in reversed([_.stylesheet for _ in self.content if (isinstance(_, ImportDirective) or isinstance(_, UseDirective)) and _.stylesheet]):
+				v = stylesheet.resolve(name)
+				if v:
+					return v
 		return v
 
 # -----------------------------------------------------------------------------
