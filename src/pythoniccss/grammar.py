@@ -78,6 +78,7 @@ def grammar(g=None, isVerbose=False):
 	g.word    ("OMACRO",           "@macro")
 	g.word    ("OKEYFRAMES",       "@keyframes")
 	g.word    ("OIMPORT",          "@import")
+	g.word    ("OUSE",             "@use")
 	g.word    ("OINCLUDE",         "@include")
 	g.word    ("OUNIT",            "@unit")
 	g.word    ("OMODULE",          "@module")
@@ -168,6 +169,7 @@ def grammar(g=None, isVerbose=False):
 	g.rule      ("Comment",             s.COMMENT.oneOrMore(), s.EOL)
 	g.rule      ("Include",             s.OINCLUDE, s.SPACE, s.PATH._as("path"),  s.EOL)
 	g.rule      ("Import",              s.OIMPORT,  s.SPACE, g.agroup(s.URL, s.NAME, s.String)._as("source"), s.EOL)
+	g.rule      ("Use",                 s.OUSE,     s.SPACE, g.agroup(s.URL, s.NAME, s.String)._as("source"), s.EOL)
 	g.rule      ("Module",              s.OMODULE,  s.SPACE, s.NAME._as("name"),  s.EOL)
 	g.rule      ("Unit",                s.OUNIT,    s.SPACE, s.NAME._as("name"),  s.EQUAL, s.Expression._as("value"), s.EOL)
 	g.rule      ("Assignment",          s.CheckIndent._as("indent"), s.Variable._as("declaration"),   s.EOL)
@@ -175,6 +177,7 @@ def grammar(g=None, isVerbose=False):
 			s.Module,
 			s.Import,
 			s.Include,
+			s.Use,
 			s.Unit,
 			s.Assignment
 	)

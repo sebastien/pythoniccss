@@ -179,6 +179,12 @@ class PCSSProcessor(Processor):
 			raise SemanticError("Cannot resolve PCSS file: {0}".format(path))
 
 	def onImport( self, match, source ):
+		return self._onImportOrUse(match, source, self.F._import)
+
+	def onUse( self, match, source ):
+		return self._onImportOrUse(match, source, self.F.use)
+
+	def _onImportOrUse( self, match, source, factoryMethod ):
 		source = source[0]
 		source = source.value if isinstance(source,String) else source
 		path   = self.resolvePCSS(source)
@@ -186,9 +192,9 @@ class PCSSProcessor(Processor):
 			result     = self.grammar.parsePath(path)
 			stylesheet = PCSSProcessor(path=path).process(result)
 			relpath    = os.path.relpath(path ,os.path.dirname(self.path))
-			return self.F._import(source, stylesheet, relpath).offsets(match)
+			return factoryMethod(source, stylesheet, relpath).offsets(match)
 		elif isinstance(source, URL):
-			return self.F._import(source, None).offsets(match)
+			return factoryMethod(source, None).offsets(match)
 		else:
 			raise SemanticError("Cannot resolve PCSS module: {0}".format(source))
 

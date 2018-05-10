@@ -124,6 +124,9 @@ class Factory(object):
 	def _import( self, source, stylesheet, path=None):
 		return ImportDirective(source, stylesheet, path)
 
+	def use( self, source, stylesheet, path=None):
+		return UseDirective(source, stylesheet, path)
+
 # -----------------------------------------------------------------------------
 #
 # AST
@@ -668,8 +671,13 @@ class ImportDirective( Directive ):
 		self.stylesheet = stylesheet
 		self.path       = path
 
+	# TODO: Should resolve the module
+
 	def copy( self ):
 		return self.__class__(self.value, self.stylesheet)
+
+class UseDirective(ImportDirective):
+	pass
 
 class Unit( Directive, Named) :
 
@@ -896,6 +904,13 @@ class Stylesheet(Node):
 	def __init__( self ):
 		Node.__init__(self)
 		self.units    = {}
+
+	def resolve( self, name ):
+		v = Node.resolve(self, name)
+		if not v:
+			for stylesheet in (_.stylesheet for _ in self.content if (isinstance(_, ImportDirective) or isinstance(_, UseDirective)) and _.stylesheet):
+				return stylesheet.resolve(name)
+		return v
 
 # -----------------------------------------------------------------------------
 #

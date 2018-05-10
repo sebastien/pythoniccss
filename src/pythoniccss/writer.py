@@ -119,6 +119,8 @@ class CSSWriter( object ):
 			pass
 		elif isinstance(element, ModuleDirective):
 			pass
+		elif isinstance(element, UseDirective):
+			yield self.onUseDirective(element)
 		elif isinstance(element, ImportDirective):
 			yield self.onImportDirective(element)
 		elif isinstance(element, Macro):
@@ -324,6 +326,10 @@ class CSSWriter( object ):
 				path = source.value
 		if path:
 			yield "@import url({0});".format(path)
+
+	def onUseDirective( self, element ):
+		# NOTE: We don't need to do anything
+		pass
 
 	def _findSelector( self, element, selector ):
 		s = self._selectors.get(selector) or element.root().findSelector(selector)
