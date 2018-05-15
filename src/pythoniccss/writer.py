@@ -117,7 +117,7 @@ class CSSWriter( object ):
 	def on( self, element ):
 		if isinstance(element, Comment):
 			pass
-		elif isinstance(element, ModuleDirective):
+		elif isinstance(element, NamespaceDirective):
 			pass
 		elif isinstance(element, UseDirective):
 			yield self.onUseDirective(element)
@@ -207,7 +207,7 @@ class CSSWriter( object ):
 
 	def onSelector( self, element ):
 		if self._namespace is self:
-			self._namespace = element.resolve("__module__")
+			self._namespace = element.resolve("__namespace__")
 		yield element.expr()
 
 	def onFunctionInvocation( self, element ):

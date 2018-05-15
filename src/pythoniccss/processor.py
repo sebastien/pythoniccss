@@ -56,6 +56,7 @@ class PCSSProcessor(Processor):
 		Processor.__init__(self, grammar or getGrammar())
 		self.F      = Factory()
 		self.path   = path
+		self._stylesheets = {}
 
 	def resolvePCSS( self, name ):
 		"""Resolves the PCSS file with the given name, or by URL if
@@ -166,7 +167,7 @@ class PCSSProcessor(Processor):
 	def onBlockName( self, match, name ):
 		return name
 
-	def onModule( self, match, name ):
+	def onNamespace( self, match, name ):
 		return self.F.module(name).offsets(match)
 
 	def onInclude( self, match, path ):
@@ -188,15 +189,25 @@ class PCSSProcessor(Processor):
 		source = source[0]
 		source = source.value if isinstance(source,String) else source
 		path   = self.resolvePCSS(source)
-		if path:
-			result     = self.grammar.parsePath(path)
-			stylesheet = PCSSProcessor(path=path).process(result)
+		if path == self.path:
+			raise SemanticError("Stylesheet importing itself: {0} at {1}".format(source, path))
+		elif path:
+			stylesheet = self.parseStylesheet(path)
 			relpath    = os.path.relpath(path ,os.path.dirname(self.path))
 			return factoryMethod(source, stylesheet, relpath).offsets(match)
 		elif isinstance(source, URL):
 			return factoryMethod(source, None).offsets(match)
 		else:
 			raise SemanticError("Cannot resolve PCSS module: {0}".format(source))
+
+	def parseStylesheet( self, path ):
+		if path in self._stylesheets:
+			return self._stylesheets[path]
+		else:
+			result     = self.grammar.parsePath(path)
+			stylesheet = PCSSProcessor(path=path).process(result)
+			self._stylesheets[path] = stylesheet
+			return stylesheet
 
 	def onStatement( self, match ):
 		indent  = self.process(match["indent"])

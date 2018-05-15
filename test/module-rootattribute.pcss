@@ -1,0 +1,14 @@
+// @expects
+// .use-block[data-breakpoint="mobile"] {
+//   background: #FF0000;
+// }
+//
+// .use-block[data-breakpoint="mobile"]  .block {
+//   padding: 0pad;
+// }
+// @end
+@module block
+&[data-breakpoint="mobile"]:
+	background:red
+	.block:
+		padding: 0pad

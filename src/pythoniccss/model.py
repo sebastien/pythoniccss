@@ -116,7 +116,7 @@ class Factory(object):
 		return Reference(name)
 
 	def module( self, name):
-		return ModuleDirective(name)
+		return NamespaceDirective(name)
 
 	def unit( self, name, value ):
 		return Unit(name, value)
@@ -133,7 +133,7 @@ class Factory(object):
 #
 # -----------------------------------------------------------------------------
 
-class Named:
+class TNamed:
 	"""Trait for a named element, used by the `Element.resolve` method."""
 
 	def __init__( self, name ):
@@ -166,7 +166,7 @@ class Element( object ):
 			return None
 		if isinstance( self, Node):
 			for _ in self.content:
-				if isinstance(_, Named) and _.name == name:
+				if isinstance(_, TNamed) and _.name == name:
 					return _
 		if self._parent:
 			return self._parent.resolve(name)
@@ -245,7 +245,7 @@ class Element( object ):
 	def slots( self, own=False ):
 		slots = []
 		if isinstance( self, Node ):
-			slots += [_.name for _ in self.content if isinstance(_, Named)]
+			slots += [_.name for _ in self.content if isinstance(_, TNamed)]
 		if not own and self._parent:
 			for _ in self._parent.slots():
 				if _ not in slots:
@@ -655,19 +655,24 @@ class Comment( Leaf ):
 	pass
 
 class Directive( Leaf):
-
 	pass
 
-class ModuleDirective( Directive, Named ):
+class TPrivateScope:
+	pass
+
+# TODO: Refactor to namespace
+class NamespaceDirective( Directive, TNamed, TPrivateScope ):
 
 	def __init__( self, value ):
 		Directive.__init__(self, value)
-		Named.__init__(self, "__module__")
+		TNamed.__init__(self, "__namespace__")
+		TPrivateScope.__init__(self)
 
-class ImportDirective( Directive ):
+class ImportDirective( Directive, TPrivateScope  ):
 
 	def __init__( self, value, stylesheet, path=None ):
 		Directive.__init__(self, value)
+		TPrivateScope.__init__(self)
 		self.stylesheet = stylesheet
 		self.path       = path
 
@@ -676,14 +681,14 @@ class ImportDirective( Directive ):
 	def copy( self ):
 		return self.__class__(self.value, self.stylesheet)
 
-class UseDirective(ImportDirective):
+class UseDirective(ImportDirective, TPrivateScope ):
 	pass
 
-class Unit( Directive, Named) :
+class Unit( Directive, TNamed) :
 
 	def __init__( self, name, value ):
 		Directive.__init__(self, value)
-		Named.__init__(self, name)
+		TNamed.__init__(self, name)
 
 	def eval( self ):
 		return self.value.eval()
@@ -724,11 +729,11 @@ class MacroInvocation( Invocation, Output ):
 		Invocation.__init__(self, name, arguments)
 		Output.__init__(self)
 
-class Variable( Value, Named ):
+class Variable( Value, TNamed ):
 
 	def __init__( self, name, value, decorator=None ):
 		Value.__init__(self, value)
-		Named.__init__(self, name)
+		TNamed.__init__(self, name)
 		self.decorator = decorator
 
 	def eval( self ):
@@ -796,11 +801,11 @@ class Context( Node, Output ):
 	def __repr__( self ):
 		return "<Context for `{0}` at {1}>".format(self.name, id(self))
 
-class Block(Node, Named):
+class Block(Node, TNamed):
 
 	def __init__( self, selections=None, name=None ):
 		Node.__init__(self)
-		Named.__init__(self, name)
+		TNamed.__init__(self, name)
 		self.selections = []
 		self._selectors = []
 		self._indent    = 0
@@ -854,7 +859,7 @@ class Block(Node, Named):
 							r.append(rs)
 			else:
 				r += bs
-			module = self.resolve("__module__")
+			module = self.resolve("__namespace__")
 			if module:
 				namespace = module.value
 				r = [_.ns(namespace) for _ in r]
@@ -865,12 +870,12 @@ class Block(Node, Named):
 	def __repr__( self ):
 		return "<Block `{0}` at {1}>".format(", ".join(_.expr() for _ in self.selections), id(self))
 
-class Macro( Node, Named ):
+class Macro( Node, TNamed ):
 
 	def __init__( self, name, parameters=None ):
 		Node.__init__(self)
 		self._indent = 0
-		Named.__init__(self, name)
+		TNamed.__init__(self, name)
 		self.parameters = parameters
 
 	def copy( self ):
@@ -884,11 +889,11 @@ class Macro( Node, Named ):
 		context = Context(args, self.name)
 		return context
 
-class Keyframes( Node, Named ):
+class Keyframes( Node, TNamed ):
 
 	def __init__( self, name ):
 		Node.__init__(self)
-		Named.__init__(self, name)
+		TNamed.__init__(self, name)
 
 	def copy( self ):
 		return Node.CopyContent(self, self.__class__(self.name))
@@ -910,9 +915,10 @@ class Stylesheet(Node):
 		if not v:
 			for stylesheet in reversed([_.stylesheet for _ in self.content if (isinstance(_, ImportDirective) or isinstance(_, UseDirective)) and _.stylesheet]):
 				v = stylesheet.resolve(name)
-				if v:
+				if v and not isinstance(v, TPrivateScope):
 					return v
-		return v
+		else:
+			return v
 
 # -----------------------------------------------------------------------------
 #
@@ -1094,7 +1100,7 @@ class Selector(Leaf):
 		if suffixes:
 			res += (" " if res else "") + suffixes
 		if res.endswith("&"):
-			res = res[:-1].strip() or ".__module__"
+			res = res[:-1].strip() or ".__namespace__"
 		return res
 
 	def _stripBEM( self, text ):
