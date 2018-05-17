@@ -325,7 +325,7 @@ class CSSWriter( object ):
 			elif isinstance(source, String):
 				path = source.value
 		if path:
-			yield "@import url({0});".format(path)
+			yield "@import url(\"{0}\");".format(path.replace(".pcss", ".css"))
 
 	def onUseDirective( self, element ):
 		# NOTE: We don't need to do anything
