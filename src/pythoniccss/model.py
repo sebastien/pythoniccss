@@ -133,13 +133,13 @@ class Factory(object):
 #
 # -----------------------------------------------------------------------------
 
-class TNamed:
+class TNamed(object):
 	"""Trait for a named element, used by the `Element.resolve` method."""
 
 	def __init__( self, name ):
 		self.name = name
 
-class Output:
+class Output(object):
 	"""A trait that denotes objects that produce significant output (ie. not comments)"""
 
 	def __init__( self ):
@@ -657,7 +657,7 @@ class Comment( Leaf ):
 class Directive( Leaf):
 	pass
 
-class TPrivateScope:
+class TPrivateScope(object):
 	pass
 
 # TODO: Refactor to namespace
