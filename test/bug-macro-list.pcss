@@ -1,0 +1,26 @@
+// EXPECTED
+// a {
+//   width: 1;
+//   height: 1;
+//   background-image: url(  a.svg  );
+// }
+//
+// b {
+//   width: 2;
+//   height: 2;
+//   background-image: url(  b.svg  );
+// }
+//
+// c {
+//   width: 3;
+//   height: 3;
+//   background-image: url(  c.svg  );
+// }
+// END
+@use macro-lib
+a
+	bg-contain(a.svg,1,1)
+b
+	bg-contain(b.svg,2,2)
+c
+	bg-contain(c.svg,3,3)

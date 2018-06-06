@@ -35,6 +35,19 @@ class SemanticError(Exception):
 class ImplementationError(Exception):
 	pass
 
+def copy( element ):
+	"""Returns a copy of the given element."""
+	if isinstance(element, Element):
+		return element.copy()
+	elif isinstance(element, list):
+		return [copy(_) for _ in element]
+	elif isinstance(element, tuple):
+		return tuple(copy(_) for _ in element)
+	elif isinstance(element, dict):
+		return dict((k,copy(v)) for k,v in element.items())
+	else:
+		return element
+
 # -----------------------------------------------------------------------------
 #
 # FACTORY
@@ -265,7 +278,7 @@ class Leaf( Element ):
 					_.parent(self)
 
 	def copy( self ):
-		return self.__class__(self.value)
+		return self.__class__(copy(self.value))
 
 class Node( Element ):
 
@@ -420,7 +433,7 @@ class String( Value ):
 		self.quote = quote
 
 	def copy( self ):
-		return self.__class__(self.value, self.quote)
+		return self.__class__(copy(self.value), copy(self.quote))
 
 	def __repr__( self ):
 		return "<str:{0}>".format(self.value)
@@ -434,7 +447,7 @@ class Number( Value ):
 		self._evaluated = None
 
 	def copy( self ):
-		return self.__class__(self.value, self.unit)
+		return self.__class__(copy(self.value), copy(self.unit))
 
 	def write( self, stream=sys.stdout):
 		stream.write(str(self.value))
@@ -593,7 +606,7 @@ class List( Leaf, Output ):
 		self.separator = separator
 
 	def copy( self ):
-		return self.__class__(self.value, self.separator)
+		return self.__class__(copy(self.value), copy(self.separator))
 
 	def unwrap( self ):
 		"""Unwraps the list if it has only one element"""
@@ -619,7 +632,7 @@ class Computation( Value ):
 		self.rvalue(rvalue)
 
 	def copy( self ):
-		return self.__class__(self.operator, self._lvalue, self._rvalue)
+		return self.__class__(self.operator, copy(self._lvalue), copy(self._rvalue))
 
 	def lvalue( self, value=NOTHING ):
 		if value is NOTHING:
@@ -695,7 +708,8 @@ class ImportDirective( Directive, TPrivateScope  ):
 	# TODO: Should resolve the module
 
 	def copy( self ):
-		return self.__class__(self.value, self.stylesheet)
+		# NOTE: Not sure that we should copy the stylesheet
+		return self.__class__(copy(self.value), self.stylesheet)
 
 class UseDirective(ImportDirective, TPrivateScope ):
 	pass
@@ -710,7 +724,7 @@ class Unit( Directive, TNamed) :
 		return self.value.eval()
 
 	def copy( self ):
-		return self.__class__(self.name, self.value)
+		return self.__class__(self.name, copy(self.value))
 
 class Invocation( Directive ):
 
@@ -720,7 +734,7 @@ class Invocation( Directive ):
 		self.arguments = arguments
 
 	def copy( self ):
-		return self.__class__(self.name, self.arguments)
+		return self.__class__(self.name, copy(self.arguments))
 
 class FunctionInvocation( Invocation ):
 
@@ -734,7 +748,8 @@ class MethodInvocation( Invocation):
 		self.target = target
 
 	def copy( self ):
-		return MethodInvocation(self.name, self.arguments, self.target)
+		# NOTE: Not sure we should copy the target
+		return MethodInvocation(self.name, copy(self.arguments), copy(self.target))
 
 	def eval( self ):
 		return self.target.invoke(self.name, self.arguments)
@@ -757,7 +772,7 @@ class Variable( Value, TNamed ):
 
 	def copy( self ):
 		# TODO: Might need to copy the value as well
-		return self.__class__(self.name, self.value, self.decorator)
+		return self.__class__(self.name, copy(self.value), copy(self.decorator))
 
 	def expand( self ):
 		return self.value
@@ -796,7 +811,7 @@ class Context( Node, Output ):
 			self.set(k, arguments[k])
 
 	def copy( self ):
-		return Node.CopyContent(self, self.__class__(self.slots, self.name))
+		return Node.CopyContent(self, self.__class__(dict((k,copy(v)) for k,v in self.slots.items), self.name))
 
 	def set( self, name, value):
 		self.slots[name] = value
