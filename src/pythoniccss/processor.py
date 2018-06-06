@@ -89,6 +89,14 @@ class PCSSProcessor(Processor):
 			"""Processes the given element so that it is added to the matching
 			parent in the stack. If `guard` is given, then the stack is not
 			unwinded past `guard`."""
+			# NOTE: The stack is going to be like that
+			# [
+			#    [ A, B, C, … ]   # Level 0
+			#    [ D, E, … ]      # Level 1
+			#    …
+			# ]
+			#
+			# Where each stack Level contains a list of PCSS model elements.
 			if isinstance(element, Stylesheet):
 				# Stylesheets are added as direct children of the root
 				# (which happens to be a stylesheet)
@@ -113,16 +121,25 @@ class PCSSProcessor(Processor):
 						if recursive or not isinstance(_, Node):
 							substack = dispatch(_.copy(), substack, head)
 				else:
+					# We have a macro invocation which we resolve
 					macro = stack[0].resolve(element.name) or stack[0].findSelector("." + element.name)
+					# We add the invocation as a child of the last model
+					# element in the current stack level.
 					stack[-1].add(element)
 					if isinstance(macro, Macro):
+						# We apply the arguments to the macro and retrieve
+						# a context.
 						context = macro.apply(element.arguments)
-						# We need to preserve the stack and make sure the
-						# dispatching does not unwind past the context
+						print ("XXX", context)
 						stack[-1].add(context)
+						# We need to preserve the stack and make sure the
+						# dispatching does not unwind past the context. That's why
+						# we create a substack that won't alter the current stack
 						substack = stack + [context]
-						# For macros,
+						# We iterate on the macro content
 						for _ in macro.content:
+							# We copy each element and assign the context
+							# as a parent.
 							_ = _.copy().parent(context)
 							substack = dispatch(_, substack, context)
 					elif macro:

@@ -308,6 +308,14 @@ class Node( Element ):
 			self._add(value)
 		return self
 
+	def remove( self, value ):
+		if isinstance(value, tuple) or isinstance(value, list):
+			for _ in value:
+				self.remove(_)
+		else:
+			self._remove(value)
+		return self
+
 	def balance( self ):
 		for _ in self.content:
 			_.balance()
@@ -315,6 +323,11 @@ class Node( Element ):
 	def _add( self, value ):
 		self.content.append(value)
 		value.parent(self)
+		return value
+
+	def _remove( self, value ):
+		self.content.remove(value)
+		value.parent(None)
 		return value
 
 	def iter( self, predicate=None ):
@@ -408,6 +421,9 @@ class String( Value ):
 
 	def copy( self ):
 		return self.__class__(self.value, self.quote)
+
+	def __repr__( self ):
+		return "<str:{0}>".format(self.value)
 
 class Number( Value ):
 
@@ -740,6 +756,7 @@ class Variable( Value, TNamed ):
 		return self.value.eval()
 
 	def copy( self ):
+		# TODO: Might need to copy the value as well
 		return self.__class__(self.name, self.value, self.decorator)
 
 	def expand( self ):
@@ -754,7 +771,8 @@ class Property( Leaf, Output ):
 		self.important = important
 
 	def copy( self ):
-		return self.__class__(self.name, self.value, self.important)
+		# We need to copy the value as well
+		return self.__class__(self.name, self.value.copy(), self.important)
 
 	def __repr__( self ):
 		return "<Property {0}={1} at {2}>".format(self.name, self.value, id(self))
@@ -799,7 +817,7 @@ class Context( Node, Output ):
 			return super(Node, self).resolve(name)
 
 	def __repr__( self ):
-		return "<Context for `{0}` at {1}>".format(self.name, id(self))
+		return "<Context for `{0}`:{1} at {2}>".format(self.name, [_ for _ in self.slots.keys()], id(self))
 
 class Block(Node, TNamed):
 
