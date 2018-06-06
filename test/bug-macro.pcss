@@ -1,18 +1,25 @@
-@macro placeholder text
-	display: inline-block
+// Originally, the macro would output always the same value.
+// EXPECTED
+// a {
+//   background-image: image-a.png;
+// }
+//
+// b {
+//   background-image: image-b.png;
+// }
+//
+// c {
+//   background-image: image-c.png;
+// }
+// END
+@macro bg url
+	background-image: $url
 
-@macro valuefield attr, placeholder
-	&.one:after:
-		content: attr($attr)
-	&.two:after:
-		display: none
-	&.three:after:
-		display: none
-		&.three.A:
-			background: red
+a
+	bg(image-a.png)
 
-// BUG: The following was not output
-operator:
-	pouet:
-		valuefield(value,"operator‥")
+b
+	bg(image-b.png)
 
+c
+	bg(image-c.png)

@@ -130,7 +130,6 @@ class PCSSProcessor(Processor):
 						# We apply the arguments to the macro and retrieve
 						# a context.
 						context = macro.apply(element.arguments)
-						print ("XXX", context)
 						stack[-1].add(context)
 						# We need to preserve the stack and make sure the
 						# dispatching does not unwind past the context. That's why
