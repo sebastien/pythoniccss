@@ -3,3 +3,18 @@
 	height: $height
 	background-image: `url(` $url `)`
 
+.dragging:
+	// NOTE: This will ensure that everything is covered
+	&:before:
+		content: ""
+		display: block
+		position: fixed
+		top: 0px
+		bottom: 0px
+		left: 0px
+		right: 0px
+		background-color:#00000000
+		user-select: none
+	&, *:
+		cursor: move !important
+		user-select: none !important

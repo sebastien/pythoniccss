@@ -17,6 +17,14 @@ __doc__ = """
 Defines an abstract model for CSS stylesheets.
 """
 
+# A list of CSS properties that allow duplicates
+ALLOW_DUPLICATES = [
+	"cursor",
+	"color",
+	"background-color",
+
+]
+
 NOTHING = object()
 OPERATOR_PRIORITY = {
 	"+" : 0,
@@ -299,7 +307,7 @@ class Node( Element ):
 		properties = {}
 		for _ in reversed(self.content):
 			if isinstance(_, Property):
-				if _.name not in properties:
+				if _.name not in properties or _.name in ALLOW_DUPLICATES:
 					result.append(_)
 					properties[_.name] = True
 			else:
