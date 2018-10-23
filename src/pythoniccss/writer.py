@@ -330,9 +330,12 @@ class CSSWriter( object ):
 		# NOTE: We don't need to do anything
 		pass
 
-	def _findSelector( self, element, selector ):
-		s = self._selectors.get(selector) or element.root().findSelector(selector)
-		if s: self._selectors[selector] = s
+	def _findSelector( self, element, selector, block=None ):
+		s = self._selectors.get(selector)
+		if not s or s is block:
+			element.root().findSelector(selector)
+		if s:
+			self._selectors[selector] = s
 		return s
 
-# EOF
+# EOF - vim: ts=4 sw=4 noet

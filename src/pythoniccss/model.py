@@ -199,7 +199,7 @@ class Element( object ):
 			root =  root._parent
 		return root.resolve(name)
 
-	def findSelector( self, selector ):
+	def findSelector( self, selector, block=None ):
 		"""Returns the first rule that matches the given selector."""
 		if not selector:
 			return None
@@ -208,17 +208,17 @@ class Element( object ):
 			for _ in self.content:
 				if isinstance(_, ImportDirective):
 					imports.append(_)
-				elif isinstance(_, Block):
+				elif isinstance(_, Block) and _ is not block:
 					for s in _.selectors():
 						if s.expr(namespace=False) == selector:
 							return _
 			for _ in self.content:
-				s = _.findSelector(selector)
-				if s: return s
+				s = _.findSelector(selector, block)
+				if s and s is not block: return s
 		# We resolve in imports as well
 		for _ in reversed(imports):
 			if _.stylesheet:
-				s = _.stylesheet.findSelector(selector)
+				s = _.stylesheet.findSelector(selector, block)
 				if s: return s
 		return None
 
@@ -1191,4 +1191,4 @@ class Selector(Leaf):
 	def __repr__( self ):
 		return "<Selector `{0}` at {1}>".format(self.expr(), id(self))
 
-# EOF
+# EOF - vim: ts=4 sw=4 noet
