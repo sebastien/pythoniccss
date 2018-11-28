@@ -170,7 +170,7 @@ class PCSSProcessor(Processor):
 				# ERROR: Not expected
 			return stack
 		# We parse the content
-		s     = self.F.stylesheet()
+		s     = self.F.stylesheet(self.path)
 		stack = [s]
 		for m in match:
 			for _ in self.process(m):
