@@ -5,11 +5,11 @@
 # License           : BSD License
 # -----------------------------------------------------------------------------
 # Creation date     : 23-Mar-2017
-# Last modification : 12-May-2017
+# Last modification : 28-Nov-2018
 # -----------------------------------------------------------------------------
 
 from __future__ import print_function
-import sys, types, io
+import sys, types, io, os
 
 IS_PYTHON3 = sys.version_info.major >= 3
 
@@ -290,7 +290,12 @@ class CSSWriter( object ):
 		if element.quote: yield (element.quote)
 
 	def onURL( self, element ):
-		yield "url(" + element.value + ")"
+		url_path  = element.value
+		if "//" not in url_path:
+			base_path = os.path.dirname(element.ancestors()[-1].path)
+			from_path = os.path.dirname(element.path)
+			url_path = os.path.relpath(os.path.normpath(from_path + "/" + url_path), base_path)
+		yield "url(" + url_path + ")"
 
 	def onKeyframes( self, element ):
 		yield ("@keyframes ")

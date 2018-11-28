@@ -108,9 +108,7 @@ class PCSSProcessor(Processor):
 				# blocks and expand them
 				if  element.name in ("merge", "extend"):
 					sel_name = element.value[0].value
-					# In case the current selector has the same name as the extended
-					# selector, we make sure there's no match.
-					block    = stack[0].findSelector(sel_name, stack[-1])
+					block    = stack[0].findSelector(sel_name)
 					if not block:
 						raise SemanticError("`{0}` could not find referenced block: `{1}`".format(element.name, sel_name))
 					recursive = element.name == "extend"
@@ -124,7 +122,7 @@ class PCSSProcessor(Processor):
 							substack = dispatch(_.copy(), substack, head)
 				else:
 					# We have a macro invocation which we resolve
-					macro = stack[0].resolve(element.name) or stack[0].findSelector("." + element.name, stack[-1])
+					macro = stack[0].resolve(element.name) or stack[0].findSelector("." + element.name)
 					# We add the invocation as a child of the last model
 					# element in the current stack level.
 					stack[-1].add(element)
@@ -170,7 +168,7 @@ class PCSSProcessor(Processor):
 				# ERROR: Not expected
 			return stack
 		# We parse the content
-		s     = self.F.stylesheet()
+		s     = self.F.stylesheet(self.path)
 		stack = [s]
 		for m in match:
 			for _ in self.process(m):
@@ -349,7 +347,7 @@ class PCSSProcessor(Processor):
 	def onURL(self, match ):
 		url = self.process(match)[1]
 		if url[0] == url[1] and url[0] in "\"'": url = url[1:-1]
-		return self.F.url(url)
+		return self.F.url(url, self.path)
 
 	def onCOLOR_HEX(self, match ):
 		c = (self.process(match)[1])
@@ -473,4 +471,4 @@ class PCSSProcessor(Processor):
 	def processToken(self, result):
 		return ensure_str(result[0])
 
-# EOF - vim: ts=4 sw=4 noet
+# EOF

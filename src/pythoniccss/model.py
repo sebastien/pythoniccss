@@ -64,8 +64,8 @@ def copy( element ):
 
 class Factory(object):
 
-	def stylesheet( self ):
-		return Stylesheet()
+	def stylesheet( self, path ):
+		return Stylesheet(path)
 
 	def comment( self, value ):
 		return Comment(value)
@@ -103,8 +103,8 @@ class Factory(object):
 	def property( self, name, value, important):
 		return Property(name, value, important)
 
-	def url( self, url ):
-		return URL(url)
+	def url( self, url, path ):
+		return URL(url, path)
 
 	def compute( self, op, lvalue, rvalue ):
 		op = op.strip()
@@ -429,7 +429,13 @@ class Reference( Value ):
 		return self.expand().eval()
 
 class URL( Value ):
-	pass
+
+	def __init__( self, value, path=None ):
+		Value.__init__(self, value)
+		self.path = path
+
+	def copy( self ):
+		return self.__class__(copy(self.value), copy(self.path))
 
 class RawString( Value ):
 	pass
@@ -947,9 +953,10 @@ class Keyframe( Node ):
 
 class Stylesheet(Node):
 
-	def __init__( self ):
+	def __init__( self, path=None ):
 		Node.__init__(self)
 		self.units    = {}
+		self.path     = path
 
 	def resolve( self, name ):
 		v = Node.resolve(self, name)
