@@ -421,6 +421,18 @@ class Reference( Value ):
 			raise SemanticError("Variable `{0}` not defined in {1}".format(self.value, self.parent()))
 		return value.expand()
 
+	def add( self, value ):
+		return self.expand().add(value)
+
+	def mul( self, value ):
+		return self.expand().mul(value)
+
+	def div( self, value ):
+		return self.expand().div(value)
+
+	def sub( self, value ):
+		return self.expand().sub(value)
+
 	# FIXME: Does not work
 	# def invoke( self, name, arguments ):
 	# 	return self.value.invoke(name, arguments)
@@ -665,6 +677,18 @@ class Computation( Value ):
 				value.parent(self)
 			self._rvalue = value
 			return self
+
+	def add( self, value ):
+		return self.eval().add(value)
+
+	def mul( self, value ):
+		return self.eval().mul(value)
+
+	def div( self, value ):
+		return self.eval().div(value)
+
+	def sub( self, value ):
+		return self.eval().sub(value)
 
 	def eval( self, context=None ):
 		result = None
