@@ -1009,7 +1009,8 @@ class Selector(Leaf):
 		self.classes    = classes if isinstance(classes, list) else [_.strip() for _ in classes.split(".") if _]
 		self.attributes = attributes
 		if suffix:
-			self.suffix = [] + suffix if isinstance(suffix, list) else [_ for _ in suffix.split(":") if _]
+			# NOTE: We need to preserve the `::`
+			self.suffix = [] + suffix if isinstance(suffix, list) else [_.replace("∷",":") for _ in suffix.replace("::",":∷").split(":") if _]
 		else:
 			self.suffix = []
 		self.next       = None

@@ -216,4 +216,4 @@ def getGrammar(isVerbose=False):
 	if not G: G = grammar(isVerbose=isVerbose)
 	return G
 
-# EOF
+# EOF - vim: ts=4 sw=4 noet
