@@ -1,0 +1,16 @@
+// BUG: > * is converted to `*.slides`
+// --
+//
+// .slides > * {
+//   width: 50%;
+// }
+//
+// .slides-content > * {
+//   width: 50%;
+// }
+.slides-
+	// > *
+	// 	width: 50%
+	.-content > *
+		width: 50%
+// EOF

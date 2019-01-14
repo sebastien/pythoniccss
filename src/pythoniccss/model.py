@@ -1105,8 +1105,17 @@ class Selector(Leaf):
 		if self.classes:
 			res.classes = [prefix + _[1:] if _ and _[0] == "-" else _ for _ in self.classes]
 		elif prefix and (self.node or self.attributes or self.id):
+			# NOTE: I'm not sure why that would be the case. For instance, if we 
+			# have. 
+			# ```
+			#.slides-
+			#	.-content > *
+			#		width: 50%
+			# ```
+			# Leave the line below would result in `slides-content > *.slides`
 			# When there is no classes, we add the prefix
-			res.classes = [prefix]
+			# res.classes = [prefix]
+			pass
 		res.next    = (res.next[0], res.next[1].expandBEM(prefix, suffix)) if res.next else None
 		return res
 
