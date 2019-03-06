@@ -15,6 +15,7 @@ from   io        import BytesIO
 from  .grammar   import getGrammar
 from  .processor import PCSSProcessor
 from  .writer    import CSSWriter
+from  .cache     import Graph
 
 try:
 	import reporter
@@ -22,9 +23,11 @@ try:
 except ImportError:
 	import logging
 
+GRAPH = Graph()
+
 def parse(path, convert=True):
-	res = getGrammar().parsePath(path)
-	return processResult(res, path) if convert else res
+	node = GRAPH.get(path)
+	return node.css if convert else node.ast
 
 def parseString(text, path=None, convert=True):
 	res = getGrammar().parseString(text)
@@ -33,7 +36,7 @@ def parseString(text, path=None, convert=True):
 def processResult( result, path=None ):
 	if result.isSuccess:
 		s = BytesIO()
-		p = PCSSProcessor(path=path)
+		p = PCSSProcessor(path=path, graph=GRAPH)
 		m = p.process(result.match)
 		writer = CSSWriter(output=s).write(m)
 		s.seek(0)
@@ -65,7 +68,7 @@ def run(args):
 	g = getGrammar(isVerbose=args.verbose)
 	if args.output: output = open(args.output, "wb")
 	g.prepare()
-	p = PCSSProcessor(grammar=g)
+	p = PCSSProcessor(grammar=g, graph=GRAPH)
 	for path in args.files:
 		start_time = time.time()
 		result = g.parsePath(path)
@@ -105,4 +108,4 @@ if __name__ == "__main__":
 	import sys
 	run(sys.argv[1:])
 
-# EOF
+# EOF - vim: ts=4 sw=4 noet

@@ -5,7 +5,7 @@ from .grammar import grammar, getGrammar
 from .model   import Factory, Stylesheet, Element, Block, Macro, MacroInvocation, URL, Node, String, SemanticError
 import re, os, sys
 
-BASE = os.path.dirname(os.path.abspath(__file__))
+BASE  = os.path.dirname(os.path.abspath(__file__))
 PCSS_PATHS = [
 	".",
 	"lib/pcss",
@@ -52,10 +52,11 @@ class PCSSProcessor(Processor):
 		else:
 			return cls.RGB[name.lower().strip()]
 
-	def __init__( self, grammar=None, path="."):
+	def __init__( self, grammar=None, path=".", graph=None):
 		Processor.__init__(self, grammar or getGrammar())
 		self.F      = Factory()
 		self.path   = path
+		self.graph  = graph
 		self._stylesheets = {}
 
 	def resolvePCSS( self, name ):
@@ -210,7 +211,10 @@ class PCSSProcessor(Processor):
 		if path == self.path:
 			raise SemanticError("Stylesheet importing itself: {0} at {1}".format(source, path))
 		elif path:
-			stylesheet = self.parseStylesheet(path)
+			# NOTE: Using the graph considerably accelerates the processing,
+			# as AST and Model are going to be cached.
+			node       = self.graph.get(path)
+			stylesheet = node.model
 			relpath    = os.path.relpath(path ,os.path.dirname(self.path))
 			return factoryMethod(source, stylesheet, relpath).offsets(match)
 		elif isinstance(source, URL):
