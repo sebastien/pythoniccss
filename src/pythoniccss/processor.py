@@ -213,8 +213,7 @@ class PCSSProcessor(Processor):
 		elif path:
 			# NOTE: Using the graph considerably accelerates the processing,
 			# as AST and Model are going to be cached.
-			node       = self.graph.get(path)
-			stylesheet = node.model
+			stylesheet = self.parseStylesheet(path)
 			relpath    = os.path.relpath(path ,os.path.dirname(self.path))
 			return factoryMethod(source, stylesheet, relpath).offsets(match)
 		elif isinstance(source, URL):
@@ -223,7 +222,10 @@ class PCSSProcessor(Processor):
 			raise SemanticError("Cannot resolve PCSS module: {0}".format(source))
 
 	def parseStylesheet( self, path ):
-		if path in self._stylesheets:
+		if self.graph:
+			node       = self.graph.get(path)
+			return node.model
+		elif path in self._stylesheets:
 			return self._stylesheets[path]
 		else:
 			result     = self.grammar.parsePath(path)

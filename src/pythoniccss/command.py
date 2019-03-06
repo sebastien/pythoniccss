@@ -26,8 +26,12 @@ except ImportError:
 GRAPH = Graph()
 
 def parse(path, convert=True):
-	node = GRAPH.get(path)
-	return node.css if convert else node.ast
+	if GRAPH:
+		node = GRAPH.get(path)
+		return node.css if convert else node.ast
+	else:
+		res = getGrammar().parsePath(path)
+		return processResult(res, path=path) if convert else res
 
 def parseString(text, path=None, convert=True):
 	res = getGrammar().parseString(text)
