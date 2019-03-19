@@ -18,10 +18,8 @@ from .model import *
 PREFIXABLE_PROPERTIES = (
 	"animation",
 	"appearance",
-	"border-radius",
 	"box",
 	"box-align",
-	"box-shadow",
 	"background-size",
 	"column-width",
 	"column-gap",
@@ -29,7 +27,6 @@ PREFIXABLE_PROPERTIES = (
 	"column-span",
 	"filter",
 	"transition-property",
-	"transition-duration",
 	"transition-timing-function",
 	"transform",
 	"transform-origin",
@@ -41,6 +38,10 @@ PREFIXABLE_PROPERTIES = (
 	"image-rendering",
 	"user-select",
 	"white-space-collapsing",
+	# Not needed as of 2019-03
+	# "border-radius",
+	# "box-shadow",
+	# "transition-duration",
 )
 
 PREFIXABLE_PROPERTIES_OVERRIDES = {

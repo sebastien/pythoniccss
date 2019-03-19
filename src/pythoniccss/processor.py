@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+# Encoding: utf-8
 
 from __future__ import print_function
 from libparsing import Processor, ensure_str, is_string
