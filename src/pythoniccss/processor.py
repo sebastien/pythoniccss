@@ -88,7 +88,7 @@ class PCSSProcessor(Processor):
 
 	def onSource( self, match ):
 		"""Regroups the lines of the stylesheet based on their indentation."""
-		def dispatch( element, stack, guard=None ):
+		def dispatch( element, stack, guard=None, depth=0):
 			"""Processes the given element so that it is added to the matching
 			parent in the stack. If `guard` is given, then the stack is not
 			unwinded past `guard`."""
@@ -122,9 +122,11 @@ class PCSSProcessor(Processor):
 					head      = stack[-1]
 					# It's important to have a copy of the stack here
 					substack  = [] + stack
+					indent    = element._indent or 0
 					for _ in block.content:
 						if recursive or not isinstance(_, Node):
-							substack = dispatch(_.copy(), substack, head)
+							# NOTE: We need to correct the indentation
+							substack = dispatch(_.copy().indent(indent + 1), substack, head, depth + 1)
 				else:
 					# We have a macro invocation which we resolve
 					macro = stack[0].resolve(element.name) or stack[0].findSelector("." + element.name, stack[-1])
@@ -140,12 +142,13 @@ class PCSSProcessor(Processor):
 						# dispatching does not unwind past the context. That's why
 						# we create a substack that won't alter the current stack
 						substack = stack + [context]
+						indent   = element._indent or 0
 						# We iterate on the macro content
 						for _ in macro.content:
 							# We copy each element and assign the context
 							# as a parent.
-							_ = _.copy().parent(context)
-							substack = dispatch(_, substack, context)
+							_ = _.copy().indent(indent + 1).parent(context)
+							substack = dispatch(_, substack, context, depth + 1)
 					elif macro:
 						raise SemanticError("`{0}` does not resolve `{1}` to macro, got {2}".format(element.name, element.name, macro))
 					else:
@@ -167,11 +170,13 @@ class PCSSProcessor(Processor):
 					stack.append(element)
 			elif isinstance(element, tuple) or isinstance(element, list):
 				for _ in element:
-					stack = dispatch(_, stack)
+					stack = dispatch(_, stack, None, depth + 1)
 			else:
 				pass
 				# ERROR: Not expected
 			return stack
+		# === Main loop ===
+		# This takes the stylesheet and dispatches everyhting
 		# We parse the content
 		s     = self.F.stylesheet(self.path)
 		stack = [s]

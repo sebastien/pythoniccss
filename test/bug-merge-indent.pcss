@@ -1,0 +1,36 @@
+// BUG: When an an extended block ends with a a sub-selector
+// ---
+// .reset-control:focus,
+// .reset-control:active {
+//   outline: 0px  solid  transparent;
+// }
+// 
+// .button {
+//   text-align: center;
+// }
+// 
+// .dialog-action {
+//   text-align: center;
+// }
+// .button:focus,
+// .button:active {
+//   outline: 0px  solid  transparent;
+// }
+// 
+// .dialog-action:focus,
+// .dialog-action:active {
+//   outline: 0px  solid  transparent;
+// }
+// ---
+
+.reset-control-
+	&:focus, &:active
+		outline: 0px solid transparent
+
+.button-
+	extend(.reset-control)
+	text-align: center
+
+.dialog-
+	.-action-
+		extend(.button)

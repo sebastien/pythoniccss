@@ -174,8 +174,13 @@ class Element( object ):
 		self.isNode   = False
 		self._offsets = [None, None]
 
-	def copy( self ):
-		return self.__class__()
+	def copy( self, value=None):
+		res             = value or self.__class__()
+		res._indent     = self._indent
+		res._offsets[0] = self._offsets[0]
+		res._offsets[1] = self._offsets[1]
+		res.isNode      = self.isNode
+		return res
 
 	def offsets( self, match ):
 		self._offsets[0] = match.offset
@@ -285,8 +290,8 @@ class Leaf( Element ):
 				if isinstance(_, Element):
 					_.parent(self)
 
-	def copy( self ):
-		return self.__class__(copy(self.value))
+	def copy( self, value=None ):
+		return super().copy(value or self.__class__(copy(self.value)))
 
 class Node( Element ):
 
@@ -301,6 +306,19 @@ class Node( Element ):
 		self.content = []
 		self.isNode  = True
 
+	def indent( self, value=NOTHING ):
+		if value is NOTHING:
+			return self._indent
+		else:
+			# NOTE: When we set the indentation of a composite, we update
+			# the indentation of all its children
+			origin = self._indent or 0
+			delta  = value - origin
+			super().indent(value)
+			for _ in self.content:
+				_.indent(_._indent + delta)
+			return self
+
 	def getUniqueContent( self ):
 		"""Filters out properties that are overriden"""
 		result     = []
@@ -314,8 +332,8 @@ class Node( Element ):
 				result.append(_)
 		return reversed(result)
 
-	def copy( self ):
-		c = self.__class__()
+	def copy( self, value=None ):
+		c = super.copy(value)
 		c.content = []
 		for _ in self.content:
 			c.add(_.copy())
@@ -446,8 +464,8 @@ class URL( Value ):
 		Value.__init__(self, value)
 		self.path = path
 
-	def copy( self ):
-		return self.__class__(copy(self.value), copy(self.path))
+	def copy( self, value=None ):
+		return super().copy(value or self.__class__(copy(self.value), copy(self.path)))
 
 class RawString( Value ):
 	pass
@@ -458,8 +476,8 @@ class String( Value ):
 		Leaf.__init__(self, value)
 		self.quote = quote
 
-	def copy( self ):
-		return self.__class__(copy(self.value), copy(self.quote))
+	def copy( self, value=None ):
+		return super().copy(value or self.__class__(copy(self.value), copy(self.quote)))
 
 	def __repr__( self ):
 		return "<str:{0}>".format(self.value)
@@ -472,8 +490,8 @@ class Number( Value ):
 		self._isDirty = True
 		self._evaluated = None
 
-	def copy( self ):
-		return self.__class__(copy(self.value), copy(self.unit))
+	def copy( self, value=None ):
+		return super().copy(value or self.__class__(copy(self.value), copy(self.unit)))
 
 	def write( self, stream=sys.stdout):
 		stream.write(str(self.value))
@@ -632,7 +650,7 @@ class List( Leaf, Output ):
 		self.separator = separator
 
 	def copy( self ):
-		return self.__class__(copy(self.value), copy(self.separator))
+		return super().copy(self.__class__(copy(self.value), copy(self.separator)))
 
 	def unwrap( self ):
 		"""Unwraps the list if it has only one element"""
@@ -808,9 +826,9 @@ class Variable( Value, TNamed ):
 	def eval( self ):
 		return self.value.eval()
 
-	def copy( self ):
+	def copy( self, value=None ):
 		# TODO: Might need to copy the value as well
-		return self.__class__(self.name, copy(self.value), copy(self.decorator))
+		return super().copy(value or self.__class__(self.name, copy(self.value), copy(self.decorator)))
 
 	def expand( self ):
 		return self.value
@@ -823,9 +841,9 @@ class Property( Leaf, Output ):
 		self.name  = name
 		self.important = important
 
-	def copy( self ):
+	def copy( self, value=None ):
 		# We need to copy the value as well
-		return self.__class__(self.name, self.value.copy(), self.important)
+		return super().copy(self.__class__(self.name, self.value.copy(), self.important))
 
 	def __repr__( self ):
 		return "<Property {0}={1} at {2}>".format(self.name, self.value, id(self))
