@@ -316,7 +316,7 @@ class Node( Element ):
 			delta  = value - origin
 			super().indent(value)
 			for _ in self.content:
-				_.indent(_._indent + delta)
+				_.indent(_._indent or 0 + delta)
 			return self
 
 	def getUniqueContent( self ):
