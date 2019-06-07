@@ -37,6 +37,8 @@ PREFIXABLE_PROPERTIES = (
 	"backface-visibility",
 	"image-rendering",
 	"user-select",
+	"scrollbar-width",
+	"scrollbar-color",
 	"white-space-collapsing",
 	# Not needed as of 2019-03
 	# "border-radius",
